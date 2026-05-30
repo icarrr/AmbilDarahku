@@ -80,38 +80,34 @@ ambildarahku/
 
 ### Prerequisites
 
-- Go 1.22+
-- Node.js 22+
 - Docker & Docker Compose
 
-### 1. Start Infrastructure
+### Run Everything
 
 ```bash
-docker compose up -d
+cp .env.example .env          # Edit JWT_SECRET for production
+docker compose up --build
 ```
 
-This starts PostgreSQL (port 5432), Redis (6379), and MinIO (9000).
+This starts all services:
 
-### 2. Start Backend
+| Service | URL |
+|---|---|
+| **Frontend** | http://localhost:3000 |
+| **Backend API** | http://localhost:8080 |
+| PostgreSQL | localhost:5432 |
+| Redis | localhost:6379 |
+| MinIO Console | http://localhost:9001 |
+
+Migrations run automatically on backend startup.
+
+### Development (hot reload)
 
 ```bash
-cd backend
-cp ../.env.example ../.env   # Edit as needed
-go run ./cmd/server
+docker compose up -d postgres redis minio   # infra only
+cd backend && go run ./cmd/server           # API on :8080
+cd frontend && npm run dev                  # UI on :3000
 ```
-
-The API starts on `http://localhost:8080`. Migrations run automatically on startup.
-
-### 3. Start Frontend
-
-```bash
-cd frontend
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-The UI starts on `http://localhost:3000`.
 
 ## API Endpoints
 
