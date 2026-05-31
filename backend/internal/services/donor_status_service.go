@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/icarrr/ambildarahku-backend/internal/repositories"
+	"github.com/icarrr/ambildarahku-backend/pkg/eligibility"
 )
 
 type DonorStatusService struct {
@@ -14,50 +15,44 @@ func NewDonorStatusService(userRepo *repositories.UserRepository) *DonorStatusSe
 	return &DonorStatusService{userRepo: userRepo}
 }
 
-const eligibilityDays = 90
-
-func (s *DonorStatusService) EvaluateEligibility(userID string) (string, *time.Time, error) {
+func (s *DonorStatusService) EvaluateEligibility(userID string) (string, *time.Time, []eligibility.RuleResult, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 
-	var eligibility string
-	var lastDonation *time.Time
-
-	if user.LastDonationDate == nil {
-		eligibility = "eligible"
-	} else {
-		lastDonation = user.LastDonationDate
-		daysSince := int(time.Since(*lastDonation).Hours() / 24)
-		if daysSince >= eligibilityDays {
-			eligibility = "eligible"
-		} else {
-			eligibility = "recovery"
-		}
+	engine := eligibility.NewEngine()
+	profile := eligibility.DonorProfile{
+		DateOfBirth:      user.DateOfBirth,
+		TotalDonations:   user.TotalDonations,
+		WeightKg:         user.WeightKg,
+		LastDonationDate: user.LastDonationDate,
 	}
 
-	if user.EligibilityStatus != eligibility {
-		user.EligibilityStatus = eligibility
+	status, reasons := engine.Evaluate(profile)
+	statusStr := string(status)
+
+	if user.EligibilityStatus != statusStr {
+		user.EligibilityStatus = statusStr
 		if err := s.userRepo.Update(user); err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 	}
 
 	if user.AvailabilityMode == "automatic" {
 		newStatus := "available"
-		if eligibility == "recovery" {
+		if statusStr == "waiting_period" || statusStr == "not_eligible" {
 			newStatus = "temporarily_unavailable"
 		}
 		if user.AvailabilityStatus != newStatus {
 			user.AvailabilityStatus = newStatus
 			if err := s.userRepo.Update(user); err != nil {
-				return "", nil, err
+				return "", nil, nil, err
 			}
 		}
 	}
 
-	return eligibility, lastDonation, nil
+	return statusStr, user.LastDonationDate, reasons, nil
 }
 
 type StatusUpdateInput struct {

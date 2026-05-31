@@ -31,6 +31,24 @@ type Config struct {
 
 	ServerPort string
 	ServerEnv  string
+
+	SeedAdminEmail    string
+	SeedAdminPassword string
+	SeedAdminPhone    string
+	CORSOrigin        string
+
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUser     string
+	SMTPPassword string
+	SMTPFrom     string
+	AppURL       string
+
+	SeedDummy bool
+}
+
+func (c *Config) SMTPEnabled() bool {
+	return c.SMTPHost != "" && c.SMTPPort != ""
 }
 
 func Load() *Config {
@@ -60,6 +78,18 @@ func Load() *Config {
 
 		ServerPort: getEnv("SERVER_PORT", "8080"),
 		ServerEnv:  getEnv("SERVER_ENV", "development"),
+
+		SeedAdminEmail:    getEnv("SEED_ADMIN_EMAIL", ""),
+		SeedAdminPassword: getEnv("SEED_ADMIN_PASSWORD", ""),
+		SeedAdminPhone:    getEnv("SEED_ADMIN_PHONE", ""),
+		SeedDummy:         getEnv("SEED_DUMMY_DATA", "false") == "true",
+
+		SMTPHost:     getEnv("SMTP_HOST", ""),
+		SMTPPort:     getEnv("SMTP_PORT", "587"),
+		SMTPUser:     getEnv("SMTP_USER", ""),
+		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:     getEnv("SMTP_FROM", "noreply@ambildarahku.id"),
+		AppURL:       getEnv("APP_URL", "http://localhost:3000"),
 	}
 }
 

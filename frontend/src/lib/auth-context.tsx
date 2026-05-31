@@ -8,17 +8,30 @@ type User = {
   full_name: string;
   email: string;
   phone: string;
+  role: string;
   blood_type: string;
   rhesus: string;
   city: string;
   total_donations: number;
+  total_points: number;
   avatar_url?: string;
   username?: string;
+  email_verified: boolean;
+  province?: string;
+  district?: string;
+  date_of_birth?: string;
+  gender?: string;
+  latitude?: number;
+  longitude?: number;
+  weight_kg?: number;
+  height_cm?: number;
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
+  isUnverified: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
@@ -103,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin: user?.role === "super_admin", isUnverified: user ? !user.email_verified : false, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

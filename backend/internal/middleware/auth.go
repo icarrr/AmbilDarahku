@@ -42,10 +42,50 @@ func AuthRequired(jwtSecret string) gin.HandlerFunc {
 
 		userID, _ := claims["user_id"].(string)
 		email, _ := claims["email"].(string)
+		role, _ := claims["role"].(string)
+		emailVerified, _ := claims["email_verified"].(bool)
 
 		c.Set("user_id", userID)
 		c.Set("email", email)
+		c.Set("role", role)
+		c.Set("email_verified", emailVerified)
 
 		c.Next()
+	}
+}
+
+func AdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "super_admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin access required"})
+			return
+		}
+		c.Next()
+	}
+}
+
+var unverifiedAllowedPaths = map[string]bool{
+	"/api/v1/auth/me":                  true,
+	"/api/v1/auth/resend-verification": true,
+	"/api/v1/auth/logout":              true,
+	"/api/v1/auth/change-password":     true,
+}
+
+func EmailVerifiedRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		verified, _ := c.Get("email_verified")
+		if verified == true {
+			c.Next()
+			return
+		}
+		if unverifiedAllowedPaths[c.FullPath()] {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error":             "email not verified",
+			"verification_link": "/verify-email",
+		})
 	}
 }

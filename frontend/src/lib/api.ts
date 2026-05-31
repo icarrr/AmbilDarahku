@@ -37,6 +37,14 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     throw new Error("Unauthorized");
   }
 
+  if (res.status === 403) {
+    const err = await res.json().catch(() => ({ error: "Forbidden" }));
+    if (err.error === "email not verified" && typeof window !== "undefined") {
+      window.location.href = "/verify-email";
+    }
+    throw new Error(err.error || "Forbidden");
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Unknown error" }));
     throw new Error(err.error || `Request failed: ${res.status}`);

@@ -16,6 +16,7 @@ func RunMigrations(db *sqlx.DB) {
 		phone VARCHAR(20) NOT NULL UNIQUE,
 		email VARCHAR(150) NOT NULL UNIQUE,
 		password_hash VARCHAR(255) NOT NULL,
+		role VARCHAR(20) NOT NULL DEFAULT 'donor' CHECK (role IN ('donor', 'super_admin', 'community_admin', 'pmi_admin', 'hospital_admin')),
 		date_of_birth DATE NOT NULL,
 		gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female')),
 		blood_type VARCHAR(3) NOT NULL CHECK (blood_type IN ('A', 'B', 'AB', 'O')),
@@ -35,7 +36,7 @@ func RunMigrations(db *sqlx.DB) {
 		unavailable_reason TEXT,
 		total_donations INT NOT NULL DEFAULT 0,
 		last_donation_date DATE,
-		eligibility_status VARCHAR(10) NOT NULL DEFAULT 'eligible' CHECK (eligibility_status IN ('eligible', 'recovery')),
+		eligibility_status VARCHAR(16) NOT NULL DEFAULT 'eligible' CHECK (eligibility_status IN ('eligible', 'not_eligible', 'waiting_period', 'needs_clearance')),
 		total_points INT NOT NULL DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -88,6 +89,7 @@ func RunMigrations(db *sqlx.DB) {
 		blood_type VARCHAR(3) NOT NULL CHECK (blood_type IN ('A', 'B', 'AB', 'O')),
 		rhesus VARCHAR(5) NOT NULL CHECK (rhesus IN ('+', '-')),
 		bags INT NOT NULL,
+		fulfilled_bags INT NOT NULL DEFAULT 0,
 		urgency VARCHAR(10) NOT NULL CHECK (urgency IN ('critical', 'urgent', 'normal')),
 		latitude DECIMAL(10,7) NOT NULL,
 		longitude DECIMAL(10,7) NOT NULL,
@@ -102,6 +104,16 @@ func RunMigrations(db *sqlx.DB) {
 	CREATE INDEX IF NOT EXISTS idx_blood_requests_blood_type ON blood_requests(blood_type);
 	CREATE INDEX IF NOT EXISTS idx_blood_requests_urgency ON blood_requests(urgency);
 	CREATE INDEX IF NOT EXISTS idx_blood_requests_status ON blood_requests(status);
+
+	CREATE TABLE IF NOT EXISTS request_fulfillments (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		request_id UUID NOT NULL REFERENCES blood_requests(id) ON DELETE CASCADE,
+		donor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		bags INT NOT NULL DEFAULT 1,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_request_fulfillments_request ON request_fulfillments(request_id);
 
 	CREATE TABLE IF NOT EXISTS badges (
 		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -131,6 +143,50 @@ func RunMigrations(db *sqlx.DB) {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+	CREATE TABLE IF NOT EXISTS events (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		title VARCHAR(255) NOT NULL,
+		description TEXT,
+		location VARCHAR(255) NOT NULL,
+		city VARCHAR(100) NOT NULL,
+		event_date DATE NOT NULL,
+		start_time VARCHAR(20) NOT NULL,
+		end_time VARCHAR(20) NOT NULL,
+		organizer VARCHAR(255),
+		contact_phone VARCHAR(20),
+		quota INT NOT NULL DEFAULT 0,
+		banner_url TEXT,
+		status VARCHAR(20) NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'ongoing', 'completed', 'cancelled')),
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
+	CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+
+	ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS fulfilled_bags INT NOT NULL DEFAULT 0;
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+
+	UPDATE users SET eligibility_status = 'waiting_period' WHERE eligibility_status = 'recovery';
+	ALTER TABLE users DROP CONSTRAINT IF EXISTS users_eligibility_status_check;
+	ALTER TABLE users ADD CONSTRAINT users_eligibility_status_check
+		CHECK (eligibility_status IN ('eligible', 'not_eligible', 'waiting_period', 'needs_clearance'));
+	ALTER TABLE users ALTER COLUMN eligibility_status TYPE VARCHAR(16);
+
+	CREATE TABLE IF NOT EXISTS verification_tokens (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token VARCHAR(255) NOT NULL,
+		type VARCHAR(20) NOT NULL CHECK (type IN ('email_verification', 'password_reset')),
+		expires_at TIMESTAMPTZ NOT NULL,
+		used_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_verification_tokens_token ON verification_tokens(token);
+	CREATE INDEX IF NOT EXISTS idx_verification_tokens_user ON verification_tokens(user_id);
 	`
 
 	_, err := db.Exec(schema)

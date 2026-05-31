@@ -1,130 +1,263 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GlassCard } from "@/components/glass-card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  User,
+  Droplets,
+  Hospital,
+  Phone,
+  FileText,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { compatibleDonorsFor } from "@/lib/blood-compatibility";
 
-const BLOOD_TYPES = ["A", "B", "AB", "O"];
-const URGENCIES = [
-  { value: "critical", label: "Critical" },
-  { value: "urgent", label: "Urgent" },
-  { value: "normal", label: "Normal" },
-];
+const BLOOD_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-export default function NewRequestPage() {
+function NewRequestForm() {
+  const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     patient_name: "",
-    hospital: "",
     blood_type: "",
-    rhesus: "",
+    rhesus: "+",
     bags: "1",
-    urgency: "normal",
-    latitude: "",
-    longitude: "",
+    hospital: "",
     city: "",
     contact_phone: "",
     notes: "",
+    urgency: "critical",
   });
-  const [loading, setLoading] = useState(false);
 
-  const update = (field: string, value: string | null) => setForm(prev => ({ ...prev, [field]: value ?? "" }));
+  useEffect(() => {
+    let bt = searchParams?.get?.("blood_type");
+    let rh = searchParams?.get?.("rhesus");
+    if (!bt || !rh) {
+      const fallback = new URLSearchParams(window.location.search);
+      bt = bt || fallback.get("blood_type") || "";
+      rh = rh || fallback.get("rhesus") || "";
+    }
+    if (rh === " " || rh === "") rh = "+";
+    if (bt && rh) {
+      setForm(prev => ({ ...prev, blood_type: bt, rhesus: rh }));
+    }
+    if (user?.phone) {
+      setForm(prev => ({ ...prev, contact_phone: user.phone }));
+    }
+  }, []);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = async () => {
+    if (!form.patient_name || !form.blood_type || !form.hospital) {
+      toast.error("Lengkapi data utama (nama, golongan darah, rumah sakit)");
+      return;
+    }
+    setSubmitting(true);
     try {
-      await api.post("/requests", {
+      const { request } = await api.post<{ request: { id: string } }>("/requests", {
         ...form,
         bags: parseInt(form.bags),
-        latitude: parseFloat(form.latitude || "0"),
-        longitude: parseFloat(form.longitude || "0"),
       });
-      toast.success("Permintaan darah dibuat");
-      router.push("/search");
+      toast.success("Permintaan darurat terkirim!");
+      router.push(`/requests/share/${request.id}`);
     } catch {
-      toast.error("Gagal membuat permintaan");
+      toast.error("Gagal mengirim permintaan");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Permintaan Darah Darurat</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-1">
-              <Label>Nama Pasien</Label>
-              <Input value={form.patient_name} onChange={e => update("patient_name", e.target.value)} required />
-            </div>
-            <div className="space-y-1">
-              <Label>Rumah Sakit</Label>
-              <Input value={form.hospital} onChange={e => update("hospital", e.target.value)} required />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Golongan Darah</Label>
-                <Select value={form.blood_type || ""} onValueChange={v => update("blood_type", v)}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    {BLOOD_TYPES.map(bt => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Rhesus</Label>
-                <Select value={form.rhesus || ""} onValueChange={v => update("rhesus", v)}>
-                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="+">+</SelectItem>
-                    <SelectItem value="-">-</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Jumlah Kantong</Label>
-                <Input type="number" min="1" value={form.bags} onChange={e => update("bags", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Tingkat Urgensi</Label>
-                <Select value={form.urgency || ""} onValueChange={v => update("urgency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {URGENCIES.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Kota</Label>
-              <Input value={form.city} onChange={e => update("city", e.target.value)} required />
-            </div>
-            <div className="space-y-1">
-              <Label>Kontak WhatsApp</Label>
-              <Input value={form.contact_phone} onChange={e => update("contact_phone", e.target.value)} required placeholder="628123456789" />
-            </div>
-            <div className="space-y-1">
-              <Label>Catatan (opsional)</Label>
-              <Input value={form.notes} onChange={e => update("notes", e.target.value)} />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Memproses..." : "Kirim Permintaan"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="mx-auto max-w-lg px-4 py-6">
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600">
+          <AlertTriangle className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="font-heading text-lg font-bold text-foreground">
+            Permintaan Darurat
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Tetap tenang. Isi detail berikut untuk membantu kami menemukan bantuan.
+          </p>
+        </div>
+      </div>
+
+      <GlassCard className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>Nama Pasien</Label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="Nama lengkap pasien"
+              value={form.patient_name}
+              onChange={(e) => setForm({ ...form, patient_name: e.target.value })}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Golongan Darah</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {BLOOD_OPTIONS.map((bt) => (
+              <button
+                key={bt}
+                onClick={() => {
+                  const [type, rhesus] = [bt.slice(0, -1), bt.slice(-1)];
+                  setForm({ ...form, blood_type: type, rhesus });
+                }}
+                className={cn(
+                  "rounded-lg py-2 text-center text-sm font-bold transition-colors",
+                  form.blood_type + form.rhesus === bt
+                    ? "bg-red-600 text-white"
+                    : "bg-muted text-muted-foreground hover:bg-gray-200",
+                )}
+              >
+                {bt}
+            </button>
+          ))}
+          </div>
+          {form.blood_type && form.rhesus && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Donor yang cocok: {compatibleDonorsFor(form.blood_type + form.rhesus).join(", ")}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Jumlah Kantong (Unit)</Label>
+          <div className="relative">
+            <Droplets className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              type="number"
+              min={1}
+              placeholder="1"
+              value={form.bags}
+              onChange={(e) => setForm({ ...form, bags: e.target.value })}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Lokasi Rumah Sakit</Label>
+          <div className="relative">
+            <Hospital className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="Nama rumah sakit"
+              value={form.hospital}
+              onChange={(e) => setForm({ ...form, hospital: e.target.value })}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Kota</Label>
+          <Input
+            placeholder="Kota lokasi rumah sakit"
+            value={form.city}
+            onChange={(e) => setForm({ ...form, city: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Nomor WhatsApp Pendamping</Label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="08xxxx"
+              value={form.contact_phone}
+              onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Catatan Tambahan (Opsional)</Label>
+          <div className="relative">
+            <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <textarea
+              placeholder="Informasi tambahan..."
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+              className="w-full rounded-xl border-0 bg-muted py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Tingkat Urgensi</Label>
+          <div className="flex gap-2">
+            {[
+              { value: "critical", label: "Kritis" },
+              { value: "urgent", label: "Mendesak" },
+              { value: "normal", label: "Biasa" },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setForm({ ...form, urgency: opt.value })}
+                className={cn(
+                  "flex-1 rounded-lg py-2 text-center text-sm font-medium transition-colors",
+                  form.urgency === opt.value
+                    ? opt.value === "critical"
+                      ? "bg-red-600 text-white"
+                      : opt.value === "urgent"
+                        ? "bg-amber-500 text-white"
+                        : "bg-blue-600 text-white"
+                    : "bg-muted text-muted-foreground hover:bg-gray-200",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Button
+          className="w-full gap-2"
+          size="lg"
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <AlertTriangle className="h-4 w-4" />
+          )}
+          Sebarkan Permintaan Darurat
+        </Button>
+      </GlassCard>
+
+      <div className="mt-3 rounded-xl bg-amber-50 p-3">
+        <p className="text-xs font-medium text-amber-800">
+          Gunakan dengan Bijak
+        </p>
+        <p className="mt-0.5 text-xs text-amber-700">
+          Setiap laporan darurat diverifikasi oleh tim kami. Mohon masukkan data yang akurat demi kelancaran proses donor.
+        </p>
+      </div>
     </div>
+  );
+}
+
+export default function NewRequestPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-lg px-4 py-6"><p className="text-muted-foreground">Memuat...</p></div>}>
+      <NewRequestForm />
+    </Suspense>
   );
 }

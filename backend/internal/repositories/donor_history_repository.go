@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"time"
+
 	"github.com/jmoiron/sqlx"
 
 	"github.com/icarrr/ambildarahku-backend/internal/models"
@@ -33,10 +35,25 @@ func (r *DonorHistoryRepository) FindByUserID(userID string) ([]*models.DonorHis
 	return histories, err
 }
 
+func (r *DonorHistoryRepository) FindByUserIDAndDate(userID string, date time.Time) (bool, error) {
+	var count int
+	err := r.db.Get(&count,
+		"SELECT COUNT(*) FROM donor_histories WHERE user_id = $1 AND donation_date = $2", userID, date)
+	return count > 0, err
+}
+
 func (r *DonorHistoryRepository) FindByID(id string) (*models.DonorHistory, error) {
 	h := &models.DonorHistory{}
 	err := r.db.Get(h, "SELECT * FROM donor_histories WHERE id = $1", id)
 	return h, err
+}
+
+func (r *DonorHistoryRepository) UpdatePhoto(id string, proofPhoto *string) error {
+	_, err := r.db.Exec(`
+		UPDATE donor_histories
+		SET proof_photo = $2, verification_status = 'verified'
+		WHERE id = $1`, id, proofPhoto)
+	return err
 }
 
 func (r *DonorHistoryRepository) UpdateVerification(id string, status string, verifiedBy string) error {

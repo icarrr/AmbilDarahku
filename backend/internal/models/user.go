@@ -8,6 +8,7 @@ type User struct {
 	Phone                string    `db:"phone" json:"phone"`
 	Email                string    `db:"email" json:"email"`
 	PasswordHash         string    `db:"password_hash" json:"-"`
+	Role                 string    `db:"role" json:"role"`
 	DateOfBirth          time.Time `db:"date_of_birth" json:"date_of_birth"`
 	Gender               string    `db:"gender" json:"gender"`
 	BloodType            string    `db:"blood_type" json:"blood_type"`
@@ -29,6 +30,7 @@ type User struct {
 	LastDonationDate     *time.Time `db:"last_donation_date" json:"last_donation_date,omitempty"`
 	EligibilityStatus    string    `db:"eligibility_status" json:"eligibility_status"`
 	TotalPoints          int       `db:"total_points" json:"total_points"`
+	EmailVerified        bool      `db:"email_verified" json:"email_verified"`
 	CreatedAt            time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt            time.Time `db:"updated_at" json:"updated_at"`
 }

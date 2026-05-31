@@ -9,15 +9,20 @@ import (
 )
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
+	UserID        string `json:"user_id"`
+	Email         string `json:"email"`
+	Role          string `json:"role"`
+	EmailVerified bool   `json:"email_verified"`
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userID, email, secret string, expiry time.Duration) (string, error) {
+func GenerateAccessToken(userID, email, role, secret string, expiry time.Duration, emailVerified ...bool) (string, error) {
+	ev := len(emailVerified) > 0 && emailVerified[0]
 	claims := Claims{
-		UserID: userID,
-		Email:  email,
+		UserID:        userID,
+		Email:         email,
+		Role:          role,
+		EmailVerified: ev,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
