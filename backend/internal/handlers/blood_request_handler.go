@@ -26,7 +26,6 @@ type CreateRequestInput struct {
 	PatientName  string  `json:"patient_name"`
 	Hospital     string  `json:"hospital"`
 	BloodType    string  `json:"blood_type"`
-	Rhesus       string  `json:"rhesus"`
 	Bags         int     `json:"bags"`
 	Urgency      string  `json:"urgency"`
 	Latitude     float64 `json:"latitude"`
@@ -60,7 +59,7 @@ func (h *BloodRequestHandler) Create(c *gin.Context) {
 		PatientName:  input.PatientName,
 		Hospital:     input.Hospital,
 		BloodType:    input.BloodType,
-		Rhesus:       input.Rhesus,
+		Rhesus:       "+",
 		Bags:         input.Bags,
 		Urgency:      input.Urgency,
 		Latitude:     input.Latitude,
@@ -83,9 +82,6 @@ func (h *BloodRequestHandler) ListOpen(c *gin.Context) {
 	filters := map[string]interface{}{}
 	if bt := c.Query("blood_type"); bt != "" {
 		filters["blood_type"] = bt
-	}
-	if rh := c.Query("rhesus"); rh != "" {
-		filters["rhesus"] = rh
 	}
 	if urgency := c.Query("urgency"); urgency != "" {
 		filters["urgency"] = urgency

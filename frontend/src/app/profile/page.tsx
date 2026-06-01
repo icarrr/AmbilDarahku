@@ -40,7 +40,6 @@ type UrgentRequest = {
   id: string;
   patient_name: string;
   blood_type: string;
-  rhesus: string;
   hospital: string;
   city: string;
   urgency: string;
@@ -56,7 +55,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     full_name: "", phone: "", city: "", username: "",
-    province: "", district: "", blood_type: "", rhesus: "", date_of_birth: "", gender: "",
+    province: "", district: "", blood_type: "", date_of_birth: "", gender: "",
     latitude: "", longitude: "", weight_kg: "", height_cm: "",
   });
 
@@ -68,7 +67,7 @@ export default function ProfilePage() {
     setForm({
       full_name: user.full_name, phone: user.phone, city: user.city, username: user.username || "",
       province: user.province || "", district: user.district || "",
-      blood_type: user.blood_type || "", rhesus: user.rhesus || "",
+      blood_type: user.blood_type || "",
       date_of_birth: user.date_of_birth ? String(user.date_of_birth).split("T")[0] : "",
       gender: user.gender || "",
       latitude: String(user.latitude ?? ""),
@@ -292,7 +291,7 @@ export default function ProfilePage() {
                       <span className="text-[10px] text-[#94a3b8]">jadwal</span>
                     </div>
                     <div className="flex items-start gap-3">
-                      <BloodTypeBadge type={`${req.blood_type}${req.rhesus}`} size="lg" />
+                      <BloodTypeBadge type={req.blood_type} size="lg" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">{req.hospital}</p>
                         <p className="text-xs text-muted-foreground">{req.city}</p>
@@ -382,16 +381,7 @@ export default function ProfilePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1">
-                    <Label>Rhesus</Label>
-                    <Select value={form.rhesus} onValueChange={v => setForm(p => ({ ...p, rhesus: v ?? "" }))}>
-                      <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="+">+</SelectItem>
-                        <SelectItem value="-">-</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
                   <div className="space-y-1">
                     <Label>Jenis Kelamin</Label>
                     <Select value={form.gender} onValueChange={v => setForm(p => ({ ...p, gender: v ?? "" }))}>

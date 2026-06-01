@@ -66,7 +66,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if v, ok := input["username"]; ok { s := v.(string); user.Username = &s }
 	if v, ok := input["avatar_url"]; ok { s := v.(string); user.AvatarURL = &s }
 	if v, ok := input["blood_type"]; ok { user.BloodType = v.(string) }
-	if v, ok := input["rhesus"]; ok { user.Rhesus = v.(string) }
 	if v, ok := input["gender"]; ok { user.Gender = v.(string) }
 	if v, ok := input["date_of_birth"]; ok {
 		if t, err := time.Parse("2006-01-02", v.(string)); err == nil {
@@ -85,7 +84,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 type PublicProfile struct {
 	FullName           string                `json:"full_name"`
 	BloodType          string                `json:"blood_type"`
-	Rhesus             string                `json:"rhesus"`
 	City               string                `json:"city"`
 	TotalDonations     int                   `json:"total_donations"`
 	TotalPoints        int                   `json:"total_points"`
@@ -103,7 +101,6 @@ type UserListItem struct {
 	Phone            string     `json:"phone"`
 	Role             string     `json:"role"`
 	BloodType        string     `json:"blood_type"`
-	Rhesus           string     `json:"rhesus"`
 	City             string     `json:"city"`
 	TotalDonations   int        `json:"total_donations"`
 	EligibilityStatus string    `json:"eligibility_status"`
@@ -127,7 +124,6 @@ func (h *UserHandler) ListAll(c *gin.Context) {
 			Phone:             u.Phone,
 			Role:              u.Role,
 			BloodType:         u.BloodType,
-			Rhesus:            u.Rhesus,
 			City:              u.City,
 			TotalDonations:    u.TotalDonations,
 			EligibilityStatus:  u.EligibilityStatus,
@@ -188,7 +184,6 @@ func (h *UserHandler) GetPublicProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, PublicProfile{
 		FullName:           user.FullName,
 		BloodType:          user.BloodType,
-		Rhesus:             user.Rhesus,
 		City:               user.City,
 		TotalDonations:     user.TotalDonations,
 		TotalPoints:        user.TotalPoints,

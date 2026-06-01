@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -14,7 +14,6 @@ import { Droplets, User, Mail, Phone, Lock, Calendar, Weight, Ruler, MapPin } fr
 import { cn } from "@/lib/utils";
 
 const BLOOD_TYPES = ["A", "B", "AB", "O"];
-const RHESUS = ["+", "-"];
 const GENDERS = [
   { value: "male", label: "Laki-laki" },
   { value: "female", label: "Perempuan" },
@@ -22,13 +21,17 @@ const GENDERS = [
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, user } = useAuth();
+
+  useEffect(() => {
+    if (user) router.replace("/profile");
+  }, [user, router]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     full_name: "", email: "", phone: "", password: "", date_of_birth: "", gender: "",
-    blood_type: "", rhesus: "", weight_kg: "", height_cm: "",
+    blood_type: "", weight_kg: "", height_cm: "",
     province: "", city: "", district: "", latitude: "", longitude: "",
   });
 
@@ -95,35 +98,35 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {step === 1 && (
             <>
-              <div className="space-y-1.5">
-                <Label>Nama Lengkap</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className="pl-10" placeholder="Nama lengkap" value={form.full_name} onChange={e => update("full_name", e.target.value)} required />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Surel</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className="pl-10" type="email" placeholder="email@example.com" value={form.email} onChange={e => update("email", e.target.value)} required />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Nomor WhatsApp</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className="pl-10" placeholder="08xxxx" value={form.phone} onChange={e => update("phone", e.target.value)} required />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Kata Sandi</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className="pl-10" type="password" placeholder="Min. 6 karakter" value={form.password} onChange={e => update("password", e.target.value)} required />
-                </div>
-              </div>
               <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Nama Lengkap</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" placeholder="Nama lengkap" value={form.full_name} onChange={e => update("full_name", e.target.value)} required />
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Surel</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" type="email" placeholder="email@example.com" value={form.email} onChange={e => update("email", e.target.value)} required />
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Nomor WhatsApp</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" placeholder="08xxxx" value={form.phone} onChange={e => update("phone", e.target.value)} required />
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Kata Sandi</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" type="password" placeholder="Min. 6 karakter" value={form.password} onChange={e => update("password", e.target.value)} required />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <Label>Tanggal Lahir</Label>
                   <div className="relative">
@@ -148,7 +151,7 @@ export default function RegisterPage() {
           {step === 2 && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="col-span-2 space-y-1.5">
                   <Label>Golongan Darah</Label>
                   <Select value={form.blood_type} onValueChange={v => update("blood_type", v ?? "")}>
                     <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
@@ -157,17 +160,6 @@ export default function RegisterPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Rhesus</Label>
-                  <Select value={form.rhesus} onValueChange={v => update("rhesus", v ?? "")}>
-                    <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                    <SelectContent>
-                      {RHESUS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Berat Badan (kg)</Label>
                   <div className="relative">
@@ -192,22 +184,28 @@ export default function RegisterPage() {
 
           {step === 3 && (
             <>
-              <div className="space-y-1.5">
-                <Label>Provinsi</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className="pl-10" value={form.province} onChange={e => update("province", e.target.value)} required placeholder="Jawa Timur" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Kabupaten/Kota</Label>
-                <Input value={form.city} onChange={e => update("city", e.target.value)} required placeholder="Malang" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Kecamatan</Label>
-                <Input value={form.district} onChange={e => update("district", e.target.value)} required placeholder="Lowokwaru" />
-              </div>
               <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Provinsi</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" value={form.province} onChange={e => update("province", e.target.value)} required placeholder="Jawa Timur" />
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Kabupaten/Kota</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" value={form.city} onChange={e => update("city", e.target.value)} required placeholder="Malang" />
+                  </div>
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Kecamatan</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input className="pl-10" value={form.district} onChange={e => update("district", e.target.value)} required placeholder="Lowokwaru" />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <Label>Latitude</Label>
                   <Input type="number" step="0.0000001" value={form.latitude} onChange={e => update("latitude", e.target.value)} placeholder="-7.98" />

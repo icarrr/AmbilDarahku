@@ -10,7 +10,6 @@ type User = {
   phone: string;
   role: string;
   blood_type: string;
-  rhesus: string;
   city: string;
   total_donations: number;
   total_points: number;
@@ -46,7 +45,6 @@ type RegisterData = {
   date_of_birth: string;
   gender: string;
   blood_type: string;
-  rhesus: string;
   weight_kg: number;
   height_cm: number;
   province: string;

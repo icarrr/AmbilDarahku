@@ -257,11 +257,6 @@ func (r *UserRepository) Search(filters map[string]interface{}) ([]*models.User,
 		args = append(args, bt)
 	}
 
-	if rh, ok := filters["rhesus"]; ok {
-		query += " AND rhesus = ?"
-		args = append(args, rh)
-	}
-
 	if city, ok := filters["city"]; ok {
 		query += " AND city = ?"
 		args = append(args, city)

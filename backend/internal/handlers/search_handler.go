@@ -64,9 +64,6 @@ func (h *SearchHandler) Search(c *gin.Context) {
 	if bt := c.Query("blood_type"); bt != "" {
 		filters["blood_type"] = bt
 	}
-	if rh := c.Query("rhesus"); rh != "" {
-		filters["rhesus"] = rh
-	}
 	if city := c.Query("city"); city != "" {
 		filters["city"] = city
 	}
@@ -129,7 +126,7 @@ func (h *SearchHandler) Search(c *gin.Context) {
 			placeholders[i] = "?"
 			args = append(args, t)
 		}
-		query += " AND (blood_type || rhesus) IN (" + strings.Join(placeholders, ",") + ")"
+		query += " AND blood_type IN (" + strings.Join(placeholders, ",") + ")"
 		query += " ORDER BY total_donations DESC"
 		query = h.userRepo.Rebind(query)
 

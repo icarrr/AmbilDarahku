@@ -53,11 +53,6 @@ func (r *BloodRequestRepository) FindOpen(filters map[string]interface{}) ([]*mo
 		args = append(args, bt)
 		i++
 	}
-	if rh, ok := filters["rhesus"]; ok {
-		query += fmt.Sprintf(" AND rhesus = $%d", i)
-		args = append(args, rh)
-		i++
-	}
 	if urgencyStr, ok := filters["urgency"]; ok {
 		parts := strings.Split(urgencyStr.(string), ",")
 		placeholders := make([]string, len(parts))

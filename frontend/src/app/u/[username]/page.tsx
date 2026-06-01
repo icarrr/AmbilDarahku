@@ -18,11 +18,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (!res.ok) return { title: "Donor Tidak Ditemukan" };
     const profile = await res.json();
     return {
-      title: `${profile.full_name} — ${profile.blood_type}${profile.rhesus}`,
-      description: `Donor darah ${profile.blood_type}${profile.rhesus} di ${profile.city || "Indonesia"}. ${profile.total_donations} donor, ${profile.total_points} poin.`,
+      title: `${profile.full_name} — ${profile.blood_type}`,
+      description: `Donor darah ${profile.blood_type} di ${profile.city || "Indonesia"}. ${profile.total_donations} donor, ${profile.total_points} poin.`,
       openGraph: {
         title: `${profile.full_name} — Profil Donor Darah`,
-        description: `Donor darah ${profile.blood_type}${profile.rhesus} di ${profile.city || "Indonesia"}.`,
+        description: `Donor darah ${profile.blood_type} di ${profile.city || "Indonesia"}.`,
       },
     };
   } catch {
@@ -38,7 +38,6 @@ type UserBadge = {
 type PublicProfile = {
   full_name: string;
   blood_type: string;
-  rhesus: string;
   city: string;
   total_donations: number;
   total_points: number;
@@ -72,7 +71,7 @@ export default async function PublicPortfolioPage({
     notFound();
   }
 
-  const bloodDisplay = `${profile.blood_type}${profile.rhesus}`;
+  const bloodDisplay = profile.blood_type;
   const badges = profile.badges || [];
   const topBadge = badges[0]?.badge?.name || "Donor";
   const isAvailable = profile.availability_status === "available" && profile.eligibility_status === "eligible";
@@ -207,7 +206,7 @@ export default async function PublicPortfolioPage({
 
       <div className="mt-6 text-center">
         <a
-          href={`/requests/new?blood_type=${encodeURIComponent(profile.blood_type)}&rhesus=${encodeURIComponent(profile.rhesus)}`}
+          href={`/requests/new?blood_type=${encodeURIComponent(profile.blood_type)}`}
           className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700"
         >
           <Heart className="h-4 w-4" />

@@ -16,7 +16,6 @@ type UserItem = {
   phone: string;
   role: string;
   blood_type: string;
-  rhesus: string;
   city: string;
   total_donations: number;
   eligibility_status: string;
@@ -110,7 +109,7 @@ export default function AdminPage() {
                     <td className="py-2 pr-4">
                       <Badge variant="outline">{ROLE_LABELS[u.role] || u.role}</Badge>
                     </td>
-                    <td className="py-2 pr-4">{u.blood_type}{u.rhesus}</td>
+                    <td className="py-2 pr-4">{u.blood_type}</td>
                     <td className="py-2 pr-4">{u.city}</td>
                     <td className="py-2 pr-4">{u.total_donations}x</td>
                     <td className="py-2 pr-4">

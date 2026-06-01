@@ -19,9 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { compatibleDonorsFor } from "@/lib/blood-compatibility";
-
-const BLOOD_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const BLOOD_OPTIONS = ["A", "B", "AB", "O"];
 
 function NewRequestForm() {
   const { user } = useAuth();
@@ -31,7 +29,6 @@ function NewRequestForm() {
   const [form, setForm] = useState({
     patient_name: "",
     blood_type: "",
-    rhesus: "+",
     bags: "1",
     hospital: "",
     city: "",
@@ -42,15 +39,12 @@ function NewRequestForm() {
 
   useEffect(() => {
     let bt = searchParams?.get?.("blood_type");
-    let rh = searchParams?.get?.("rhesus");
-    if (!bt || !rh) {
+    if (!bt) {
       const fallback = new URLSearchParams(window.location.search);
       bt = bt || fallback.get("blood_type") || "";
-      rh = rh || fallback.get("rhesus") || "";
     }
-    if (rh === " " || rh === "") rh = "+";
-    if (bt && rh) {
-      setForm(prev => ({ ...prev, blood_type: bt, rhesus: rh }));
+    if (bt) {
+      setForm(prev => ({ ...prev, blood_type: bt }));
     }
     if (user?.phone) {
       setForm(prev => ({ ...prev, contact_phone: user.phone }));
@@ -113,24 +107,21 @@ function NewRequestForm() {
             {BLOOD_OPTIONS.map((bt) => (
               <button
                 key={bt}
-                onClick={() => {
-                  const [type, rhesus] = [bt.slice(0, -1), bt.slice(-1)];
-                  setForm({ ...form, blood_type: type, rhesus });
-                }}
+                onClick={() => setForm({ ...form, blood_type: bt })}
                 className={cn(
                   "rounded-lg py-2 text-center text-sm font-bold transition-colors",
-                  form.blood_type + form.rhesus === bt
+                  form.blood_type === bt
                     ? "bg-red-600 text-white"
                     : "bg-muted text-muted-foreground hover:bg-gray-200",
                 )}
               >
                 {bt}
             </button>
-          ))}
+            ))}
           </div>
-          {form.blood_type && form.rhesus && (
+          {form.blood_type && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Donor yang cocok: {compatibleDonorsFor(form.blood_type + form.rhesus).join(", ")}
+              Golongan darah {form.blood_type}
             </p>
           )}
         </div>

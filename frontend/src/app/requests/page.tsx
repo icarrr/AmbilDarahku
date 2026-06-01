@@ -6,19 +6,20 @@ import { GlassCard } from "@/components/glass-card";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { Button } from "@/components/ui/button";
-import { Droplets, MapPin, Plus, Clock, AlertTriangle } from "lucide-react";
+import { Droplets, MapPin, Plus, Clock, AlertTriangle, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type BloodRequest = {
   id: string;
   patient_name: string;
   blood_type: string;
-  rhesus: string;
   hospital: string;
   city: string;
   urgency: string;
   bags: number;
   fulfilled_bags: number;
+  contact_phone?: string;
+  notes?: string;
   created_at: string;
 };
 
@@ -84,7 +85,7 @@ export default function RequestsPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-semibold text-foreground">{req.patient_name}</p>
-                        <BloodTypeBadge type={`${req.blood_type}${req.rhesus}`} size="sm" />
+                        <BloodTypeBadge type={req.blood_type} size="sm" />
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3 flex-shrink-0" />
@@ -97,6 +98,18 @@ export default function RequestsPage() {
                         </span>
                         <span>{req.bags - (req.fulfilled_bags || 0)}/{req.bags} kantong</span>
                       </div>
+                      {req.contact_phone && (
+                        <a
+                          href={`https://wa.me/${req.contact_phone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <MessageCircle className="h-3 w-3" />
+                          {req.contact_phone}
+                        </a>
+                      )}
                       {(req.fulfilled_bags || 0) > 0 && (
                         <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-gray-100">
                           <div

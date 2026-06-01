@@ -8,7 +8,6 @@ import Link from "next/link";
 interface DonorCardProps {
   name: string;
   bloodType: string;
-  rhesus: string;
   city: string;
   distance?: string;
   status: string;
@@ -21,7 +20,6 @@ interface DonorCardProps {
 export function DonorCard({
   name,
   bloodType,
-  rhesus,
   city,
   distance,
   status,
@@ -30,7 +28,7 @@ export function DonorCard({
   isTopDonor,
   className,
 }: DonorCardProps) {
-  const bloodDisplay = `${bloodType}${rhesus}`;
+  const bloodDisplay = bloodType;
   return (
     <GlassCard className={cn("flex items-center gap-3", isTopDonor && "glass-card-elevated", className)}>
       {isTopDonor && (

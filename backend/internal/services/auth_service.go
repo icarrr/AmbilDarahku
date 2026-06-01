@@ -40,21 +40,20 @@ func NewAuthService(
 }
 
 type RegisterInput struct {
-	FullName   string    `json:"full_name"`
-	Phone      string    `json:"phone"`
-	Email      string    `json:"email"`
-	Password   string    `json:"password"`
-	DateOfBirth time.Time `json:"date_of_birth"`
-	Gender     string    `json:"gender"`
-	BloodType  string    `json:"blood_type"`
-	Rhesus     string    `json:"rhesus"`
-	WeightKg   float64   `json:"weight_kg"`
-	HeightCm   float64   `json:"height_cm"`
-	Province   string    `json:"province"`
-	City       string    `json:"city"`
-	District   string    `json:"district"`
-	Latitude   float64   `json:"latitude"`
-	Longitude  float64   `json:"longitude"`
+	FullName    string  `json:"full_name"`
+	Phone       string  `json:"phone"`
+	Email       string  `json:"email"`
+	Password    string  `json:"password"`
+	DateOfBirth string  `json:"date_of_birth"`
+	Gender      string  `json:"gender"`
+	BloodType   string  `json:"blood_type"`
+	WeightKg    float64 `json:"weight_kg"`
+	HeightCm    float64 `json:"height_cm"`
+	Province    string  `json:"province"`
+	City        string  `json:"city"`
+	District    string  `json:"district"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 type AuthResult struct {
@@ -83,6 +82,15 @@ func (s *AuthService) Register(input *RegisterInput) (*AuthResult, error) {
 		return nil, errors.New("phone already registered")
 	}
 
+	var dateOfBirth time.Time
+	if parsed, err := time.Parse(time.RFC3339, input.DateOfBirth); err == nil {
+		dateOfBirth = parsed
+	} else if parsed, err := time.Parse("2006-01-02", input.DateOfBirth); err == nil {
+		dateOfBirth = parsed
+	} else {
+		return nil, errors.New("invalid date_of_birth format, expected YYYY-MM-DD or RFC3339")
+	}
+
 	hash, err := utils.HashPassword(input.Password)
 	if err != nil {
 		return nil, errors.New("failed to hash password")
@@ -93,10 +101,10 @@ func (s *AuthService) Register(input *RegisterInput) (*AuthResult, error) {
 		Phone:        input.Phone,
 		Email:        input.Email,
 		PasswordHash: hash,
-		DateOfBirth:  input.DateOfBirth,
+		DateOfBirth:  dateOfBirth,
 		Gender:       input.Gender,
 		BloodType:    input.BloodType,
-		Rhesus:       input.Rhesus,
+		Rhesus:       "+",
 		WeightKg:     input.WeightKg,
 		HeightCm:     input.HeightCm,
 		Province:     input.Province,

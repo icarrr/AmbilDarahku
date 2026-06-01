@@ -19,7 +19,7 @@ export default function PrivacyPage() {
       <div className="mt-8 space-y-6 text-sm leading-relaxed text-foreground">
         <section>
           <h2 className="mb-2 font-heading text-lg font-semibold">1. Pengumpulan Data</h2>
-          <p>Kami mengumpulkan data pribadi yang Anda berikan saat mendaftar, termasuk nama, nomor telepon, email, golongan darah, rhesus, tanggal lahir, jenis kelamin, berat badan, tinggi badan, dan lokasi.</p>
+          <p>Kami mengumpulkan data pribadi yang Anda berikan saat mendaftar, termasuk nama, nomor telepon, email, golongan darah, tanggal lahir, jenis kelamin, berat badan, tinggi badan, dan lokasi.</p>
         </section>
 
         <section>

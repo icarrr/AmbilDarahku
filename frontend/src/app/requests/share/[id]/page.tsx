@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GlassCard } from "@/components/glass-card";
-import { Droplets, Hospital, User, ArrowLeft, CheckCircle, HeartHandshake } from "lucide-react";
-import { compatibleDonorsFor, canDonateTo } from "@/lib/blood-compatibility";
+import { Droplets, Hospital, User, ArrowLeft, CheckCircle, HeartHandshake, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -18,7 +17,6 @@ type BloodRequest = {
   id: string;
   patient_name: string;
   blood_type: string;
-  rhesus: string;
   hospital: string;
   city: string;
   urgency: string;
@@ -108,9 +106,9 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  const bloodDisplay = `${request.blood_type}${request.rhesus}`;
-  const userBloodDisplay = user ? `${user.blood_type}${user.rhesus}` : "";
-  const isCompatible = user ? canDonateTo(userBloodDisplay, bloodDisplay) : false;
+  const bloodDisplay = request.blood_type;
+  const userBloodDisplay = user ? user.blood_type : "";
+  const isCompatible = true;
   const pageUrl = typeof window !== "undefined" ? window.location.href : "";
   const remaining = request.bags - (request.fulfilled_bags || 0);
   const progress = request.bags > 0 ? ((request.fulfilled_bags || 0) / request.bags) * 100 : 0;
@@ -137,98 +135,91 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
-        <div className="bg-white px-6 py-8">
-          <p className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
-            BUTUH DONOR DARAH SEGERA
-          </p>
-
-          <div className="mb-6 text-center">
-            <BloodTypeBadge type={bloodDisplay} size="lg" className="text-3xl px-6 py-3" />
-            <p className="mt-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-              {bloodDisplay === "B-" ? "B NEGATIF • SANGAT LANGKA" : `${bloodDisplay} • ${request.rhesus === "+" ? "Rhesus Positif" : "Rhesus Negatif"}`}
-            </p>
-            <div className="mt-3 rounded-lg bg-gray-50 p-3 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Donor yang Cocok</p>
-              <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
-                {compatibleDonorsFor(bloodDisplay).map((t) => (
-                  <span key={t} className="rounded-md bg-white px-2 py-0.5 text-xs font-bold text-red-600 shadow-sm">{t}</span>
-                ))}
+        <div className="bg-white px-6 py-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 text-center">
+              <BloodTypeBadge type={bloodDisplay} size="lg" className="text-3xl px-5 py-3" />
+              <div className="mt-2">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    request.urgency === "critical"
+                      ? "bg-red-100 text-red-700"
+                      : request.urgency === "urgent"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-blue-100 text-blue-700"
+                  }`}
+                >
+                  {request.urgency === "critical" && <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />}
+                  {request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "BIASA"}
+                </span>
               </div>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">BUTUH DONOR DARAH SEGERA</p>
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                  <span className="text-sm font-semibold text-foreground">{request.patient_name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Hospital className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                  <span className="text-xs text-muted-foreground">{request.hospital}{request.city ? `, ${request.city}` : ""}</span>
+                </div>
+              </div>
+
+              {isFulfilled ? (
+                <div className="mt-3 rounded-lg bg-emerald-50 p-2 text-center">
+                  <p className="text-xs font-bold text-emerald-700">Permintaan Terpenuhi</p>
+                  <p className="text-[10px] text-emerald-600">{request.bags} kantong terkumpul</p>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground">{remaining} kantong lagi</span>
+                    <span className="text-[#94a3b8]">{request.fulfilled_bags || 0}/{request.bags}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(progress, 100)}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="mb-6 flex justify-center">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider ${
-                request.urgency === "critical"
-                  ? "bg-red-100 text-red-700"
-                  : request.urgency === "urgent"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-blue-100 text-blue-700"
-              }`}
-            >
-              {request.urgency === "critical" && <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />}
-              {request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "BIASA"}
-            </span>
-          </div>
-
-          {isFulfilled ? (
-            <div className="mb-6 rounded-xl bg-emerald-50 p-4 text-center">
-              <CheckCircle className="mx-auto h-8 w-8 text-emerald-500" />
-              <p className="mt-1 text-sm font-bold text-emerald-700">Permintaan Terpenuhi</p>
-              <p className="text-xs text-emerald-600">{request.bags} kantong telah terkumpul</p>
+          <div className="mt-4 flex items-center gap-3 border-t border-gray-100 pt-4">
+            <div className="flex-shrink-0">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(pageUrl)}`}
+                alt="QR Code"
+                className="rounded-lg"
+              />
             </div>
-          ) : (
-            <div className="mb-6 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-foreground">{remaining} kantong lagi dibutuhkan</span>
-                <span className="text-xs text-[#94a3b8]">{request.fulfilled_bags || 0} / {request.bags} terpenuhi</span>
-              </div>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                  style={{ width: `${Math.min(progress, 100)}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3 border-t border-gray-100 pt-4">
-            <div className="flex items-center gap-3">
-              <User className="h-5 w-5 text-gray-400" />
-              <div>
-                <p className="text-xs text-gray-500">Nama Pasien</p>
-                <p className="text-sm font-semibold text-foreground">{request.patient_name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Hospital className="h-5 w-5 text-gray-400" />
-              <div>
-                <p className="text-xs text-gray-500">Lokasi Rumah Sakit</p>
-                <p className="text-sm font-semibold text-foreground">{request.hospital}{request.city ? `, ${request.city}` : ""}</p>
-              </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Hubungi / Scan</p>
+              {request.contact_phone ? (
+                <a
+                  href={`https://wa.me/${request.contact_phone}?text=${encodeURIComponent(
+                    `Halo, saya ingin membantu donor darah untuk:\n\n` +
+                    `🩸 Golongan Darah: ${bloodDisplay}\n` +
+                    `👤 Pasien: ${request.patient_name}\n` +
+                    `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city}` : ""}\n` +
+                    `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
+                    `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
+                    `Mohon info lebih lanjut. Terima kasih.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-600"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  {request.contact_phone}
+                </a>
+              ) : (
+                <p className="text-[10px] text-[#94a3b8]">Scan QR untuk membuka halaman permintaan</p>
+              )}
             </div>
           </div>
-
-          {request.contact_phone && (
-            <a
-              href={`https://wa.me/${request.contact_phone}?text=${encodeURIComponent(
-                `Halo, saya ingin membantu donor darah untuk:\n\n` +
-                `🩸 Golongan Darah: ${bloodDisplay}\n` +
-                `👤 Pasien: ${request.patient_name}\n` +
-                `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city}` : ""}\n` +
-                `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
-                `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
-                `Mohon info lebih lanjut. Terima kasih.`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
-            >
-              <Droplets className="h-4 w-4" />
-              Hubungi Via WhatsApp
-            </a>
-          )}
         </div>
       </div>
 
