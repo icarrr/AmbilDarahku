@@ -87,8 +87,8 @@ export default async function LandingPage() {
 
       <section className="px-5 pb-12">
         <div className="mx-auto grid max-w-5xl grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
-          {statCards.map((stat) => (
-            <GlassCard key={stat.label} className="text-center">
+          {statCards.map((stat, i) => (
+            <GlassCard key={stat.label} className={`text-center animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600">
                 {stat.icon}
               </div>

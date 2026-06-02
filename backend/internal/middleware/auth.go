@@ -72,6 +72,17 @@ var unverifiedAllowedPaths = map[string]bool{
 	"/api/v1/auth/change-password":     true,
 }
 
+func PMIOrAdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "super_admin" && role != "pmi_admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "PMI or admin access required"})
+			return
+		}
+		c.Next()
+	}
+}
+
 func EmailVerifiedRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		verified, _ := c.Get("email_verified")

@@ -6,8 +6,10 @@ import { GlassCard } from "@/components/glass-card";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { Button } from "@/components/ui/button";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { Droplets, MapPin, Plus, Clock, AlertTriangle, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 type BloodRequest = {
   id: string;
@@ -25,15 +27,17 @@ type BloodRequest = {
 
 export default function RequestsPage() {
   const router = useRouter();
+  const { user, isUnverified } = useAuth();
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isUnverified) { router.replace("/verify-email"); return; }
     api.get<{ requests: BloodRequest[] }>("/requests", false)
       .then(d => setRequests(d.requests || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [isUnverified, router]);
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -59,19 +63,22 @@ export default function RequestsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+        <div className="space-y-3">
+          {[1,2,3].map(i => <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}><SkeletonCard /></div>)}
         </div>
       ) : requests.length === 0 ? (
-        <div className="py-16 text-center">
-          <AlertTriangle className="mx-auto h-10 w-10 text-gray-200" />
-          <p className="mt-3 text-sm text-muted-foreground">Belum ada permintaan darah terbuka</p>
-          <p className="text-xs text-[#94a3b8]">Saat ini semua permintaan telah terpenuhi</p>
+        <div className="py-16 text-center animate-fade-in">
+          <AlertTriangle className="mx-auto h-12 w-12 text-gray-200" />
+          <p className="mt-3 font-medium text-foreground">Belum ada permintaan darah</p>
+          <p className="text-sm text-muted-foreground">Saat ini semua permintaan telah terpenuhi</p>
+          <Button variant="outline" className="mt-4" onClick={() => router.push("/requests/new")}>
+            <Plus className="h-4 w-4 mr-1" /> Buat Permintaan
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
-          {requests.map((req) => (
-            <div key={req.id} onClick={() => router.push(`/requests/share/${req.id}`)} className="cursor-pointer">
+          {requests.map((req, i) => (
+            <div key={req.id} onClick={() => router.push(`/requests/share/${req.id}`)} className={`cursor-pointer animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <GlassCard>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">

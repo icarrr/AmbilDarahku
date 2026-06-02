@@ -1,161 +1,179 @@
-# AI Agent Guide — AmbilDarahku
+# AI Agent Guide — AmbilDarahku (v3.0)
 
 ## Project Overview
 
-**AmbilDarahku** is a community-based blood donor platform connecting blood donors with those in need. Built as a monorepo with a Go (Gin) backend API and Next.js frontend.
+**AmbilDarahku** — Platform donor darah berbasis komunitas untuk Indonesia. Monorepo: Go/Gin backend + Next.js 16 frontend. JWT auth with refresh rotation, glassmorphism UI ("Vitality Flow"), PostgreSQL 16, Docker Compose (5 services).
 
-- **Business Purpose**: Reduce blood donor search time during emergencies through a verified community network
-- **Target Market**: Indonesia (Indonesian language interface with Indonesian locale data)
-- **Owner**: Faizar Septiawan
-- **Stage**: MVP / Phase 1
+All seed accounts use password: `donor123`.
 
----
+**Owner**: Faizar Septiawan
 
-## Read Documentation In This Order
-
-Future AI agents should load these files first (priority order):
+## Load Documentation In This Order
 
 1. `docs/AGENTS.md` — This file (entry point)
-2. `docs/ARCHITECTURE.md` — System architecture overview
-3. `docs/API.md` — All API endpoints, request/response examples
-4. `docs/DATABASE.md` — Schema, tables, relationships, indexes
-5. `docs/FEATURES.md` — All features by domain, user roles
-6. `docs/BUSINESS_RULES.md` — Business logic and validation rules
-7. `docs/INFRASTRUCTURE.md` — Docker, deployment, CI/CD
-8. `docs/DECISIONS.md` — Architecture decisions and trade-offs
+2. `docs/ARCHITECTURE.md` — System architecture
+3. `docs/API.md` — Complete API reference (50+ endpoints)
+4. `docs/DATABASE.md` — Schema (14 tables, columns, indexes)
+5. `docs/FEATURES.md` — Feature inventory per domain
+6. `docs/BUSINESS_RULES.md` — Business logic + validation rules
+7. `docs/INFRASTRUCTURE.md` — Docker, CI/CD, deployment
+8. `docs/DECISIONS.md` — Key architecture decisions
 9. `docs/TROUBLESHOOTING.md` — Common issues
-10. `PRD.md` — Product requirements (reference)
-11. `DESIGN.md` — Design system (Vitality Flow)
-
-You generally do NOT need to scan the full source tree. Start with these docs.
-
----
+10. `PRD.md` — Product requirements
+11. `DESIGN.md` — Vitality Flow design system
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16, TypeScript 5, TailwindCSS 4, Base UI (shadcn/ui) |
+| Frontend | Next.js 16.2.6, TypeScript 5, TailwindCSS 4, Base UI (shadcn/ui) |
 | Backend | Go 1.26, Gin Framework 1.12 |
-| Database | PostgreSQL 16 (via sqlx and lib/pq) |
-| Cache | Redis 7 (declared but not yet integrated in code) |
-| Storage | MinIO / S3-compatible (MinIO dev, Cloudflare R2/AWS S3 prod) |
-| Maps | OpenStreetMap + Leaflet (declared but not yet integrated) |
+| Database | PostgreSQL 16 (sqlx + lib/pq) |
+| Cache | Redis 7 (declared, not used in code) |
+| Storage | MinIO / S3-compatible (mock fallback if env not set) |
 | Auth | JWT (golang-jwt v5), bcrypt password hashing |
+| Maps | OpenStreetMap + Leaflet (declared, not integrated) |
+| QR | `api.qrserver.com` (no local QR library) |
 | Container | Docker, Docker Compose |
 | CI | GitHub Actions |
-
----
 
 ## Repository Map
 
 ```
 ambildarahku/
-├── backend/                          # Go API server
-│   ├── cmd/server/main.go            # Entry point
+├── backend/
+│   ├── cmd/server/main.go            # Entry point — config→db→migrate→seed→routes→listen
 │   ├── internal/
-│   │   ├── config/config.go          # Env config loader
+│   │   ├── config/config.go          # Env loader (SMTP_FROM fallback SMTP_SENDER)
 │   │   ├── database/
-│   │   │   ├── postgres.go           # DB connection (sqlx)
-│   │   │   └── migrations.go         # Auto-run schema migrations
-│   │   ├── handlers/                 # HTTP handlers (7 files)
-│   │   │   ├── auth_handler.go       # Register, Login, Refresh, Logout
-│   │   │   ├── user_handler.go       # Profile CRUD, admin user mgmt
-│   │   │   ├── blood_request_handler.go
-│   │   │   ├── donor_history_handler.go
-│   │   │   ├── donor_status_handler.go
-│   │   │   ├── leaderboard_handler.go
-│   │   │   └── search_handler.go
+│   │   │   ├── postgres.go           # sqlx.Connect
+│   │   │   └── migrations.go         # 14 tables + ALTER TABLE (idempotent)
+│   │   ├── handlers/                 # 16 handler files
+│   │   │   ├── auth_handler.go       # Register, Login, Refresh, Logout, VerifyEmail, Resend, Forgot/Reset/ChangePassword
+│   │   │   ├── user_handler.go       # GetProfile, UpdateProfile, ListAll, UpdateUserRole, GetPublicProfile
+│   │   │   ├── donor_history_handler.go  # List, Create, Update
+│   │   │   ├── blood_request_handler.go  # Create, ListOpen, MyRequests, UpdateStatus, Fulfill, GetByID, ListFulfillments
+│   │   │   ├── donor_status_handler.go   # GetStatus, UpdateStatus
+│   │   │   ├── search_handler.go         # Search (donors with distance + state)
+│   │   │   ├── leaderboard_handler.go    # National, Regional
+│   │   │   ├── event_handler.go          # List, Create (admin)
+│   │   │   ├── passport_handler.go       # GetMyPassport, GetByUsername, VerifyByQR, Request, Renew
+│   │   │   ├── claim_handler.go          # ListMy, Get, Create, Update, Cancel, Review (admin), ListPending (admin)
+│   │   │   ├── verification_handler.go   # GetMy, Submit, Review (admin), ListPending (admin)
+│   │   │   ├── timeline_handler.go       # GetMyTimeline, GetPublicTimeline
+│   │   │   ├── recognition_handler.go    # GetPortfolio, GetPublicPortfolio, List/Create/Update/Delete Awards (admin), AwardTitle (admin), ListAllTitles (admin)
+│   │   │   ├── admin_handler.go          # GetStats, ListPendingClaims, GetClaimDetail, ListPendingVerifications
+│   │   │   ├── trust_handler.go          # GetOwn, GetPublic, Refresh
+│   │   │   └── analytics_handler.go      # 6 analytics endpoints (institutions, cities, years, months, age, top-donors)
 │   │   ├── middleware/
-│   │   │   ├── auth.go              # JWT auth + admin check
-│   │   │   └── cors.go             # CORS middleware
-│   │   ├── models/                   # 6 domain models
-│   │   ├── repositories/            # 6 data access repositories
-│   │   ├── routes/router.go         # Route registration
-│   │   ├── services/                 # Business logic (4 services)
-│   │   └── seed/admin.go            # Super admin seeder
-│   ├── pkg/utils/
-│   │   ├── jwt.go                   # Token generation
-│   │   └── password.go              # bcrypt hash/verify
-│   ├── Dockerfile
-│   └── go.mod / go.sum
-├── frontend/                         # Next.js SPA
+│   │   │   ├── auth.go                  # AuthRequired (JWT), AdminRequired, PMIOrAdminRequired, EmailVerifiedRequired
+│   │   │   └── cors.go                  # Allow-all CORS
+│   │   ├── models/                      # 11 model files (User, DonorHistory, BloodRequest, Event, Badge+UserBadge, RefreshToken, VerificationToken, DonorPassport, DonationClaim, DonorVerification, AwardConfig+UserTitle)
+│   │   ├── repositories/                # 13 repository files
+│   │   ├── routes/router.go             # 50+ routes with middleware stacking
+│   │   └── services/                    # 6 service files (auth, email, status, file, trust, whatsapp)
+│   ├── pkg/
+│   │   ├── blood/compatibility.go       # Full ABO+Rh compatibility matrix
+│   │   ├── eligibility/                 # Rule engine (AgeRule, WeightRule, IntervalRule)
+│   │   └── utils/                       # jwt.go, password.go
+│   ├── seed/
+│   │   ├── admin.go                    # Super admin seeder
+│   │   └── dummy.go                    # 1,500+ donors, 60 requests, 29 events (background goroutine)
+│   ├── Dockerfile                      # Multi-stage (golang→alpine)
+│   └── go.mod
+├── frontend/
 │   ├── src/
-│   │   ├── app/                      # Next.js App Router pages
-│   │   │   ├── page.tsx             # Landing page
-│   │   │   ├── layout.tsx           # Root layout (glassmorphism)
-│   │   │   ├── login/page.tsx
-│   │   │   ├── register/page.tsx     # 3-step registration form
-│   │   │   ├── profile/page.tsx     # Donor dashboard
-│   │   │   ├── search/page.tsx      # Donor search with filters
-│   │   │   ├── admin/page.tsx       # Admin user management
-│   │   │   ├── donor-history/page.tsx
-│   │   │   ├── leaderboard/page.tsx
-│   │   │   ├── [username]/page.tsx   # Public portfolio (SSR)
-│   │   │   └── requests/
-│   │   │       ├── new/page.tsx     # Emergency request form
-│   │   │       └── share/[id]/page.tsx
-│   │   ├── components/               # 10 reusable components
-│   │   ├── components/ui/           # 6 shadcn/ui components
-│   │   └── lib/
-│   │       ├── api.ts              # API client with JWT refresh
-│   │       ├── auth-context.tsx     # Auth state provider
-│   │       └── utils.ts            # cn() utility
-│   ├── Dockerfile                   # Multi-stage (standalone output)
-│   └── package.json
-├── docker-compose.yml               # 5 services
-├── .github/workflows/ci.yml         # CI pipeline
-├── .env.example                     # Config template
-├── PRD.md                           # Product requirements doc
-├── DESIGN.md                        # Vitality Flow design system
-└── README.md                        # Quick start guide
+│   │   ├── app/                        # 30 page.tsx across 27 routes
+│   │   │   ├── page.tsx               # Landing page (live stats)
+│   │   │   ├── login/                 # Login form
+│   │   │   ├── register/              # 3-step registration (profile→blood→domicile)
+│   │   │   ├── forgot-password/       # Forgot password form
+│   │   │   ├── reset-password/        # Password reset (Suspense)
+│   │   │   ├── verify-email/          # Email verification (Suspense, refreshUser)
+│   │   │   ├── profile/               # Dashboard with stats, ring, verification, trust, timeline, edit
+│   │   │   ├── search/                # Donor search (filters, geolocation, clickable cards)
+│   │   │   ├── requests/              # Blood request list
+│   │   │   ├── requests/new/          # New blood request form
+│   │   │   ├── requests/share/[id]/   # Share card with QR + compatibility + fulfill
+│   │   │   ├── donor-history/         # Donation log + proof upload
+│   │   │   ├── leaderboard/           # National/regional with podium
+│   │   │   ├── events/                # Event listing
+│   │   │   ├── events/new/            # Create event (admin)
+│   │   │   ├── passport/              # Donor passport with QR + print
+│   │   │   ├── passport/verify/[token]/  # Public QR verification (SSR)
+│   │   │   ├── claims/                # Donation claims list
+│   │   │   ├── claims/new/            # New claim form
+│   │   │   ├── verification/          # Verification levels + submit
+│   │   │   ├── timeline/              # Unified activity feed
+│   │   │   ├── recognition/           # Printable portfolio
+│   │   │   ├── admin/                 # Dashboard + user management
+│   │   │   ├── admin/analytics/       # Analytics (bar charts)
+│   │   │   ├── admin/verifications/   # Review verification requests
+│   │   │   ├── admin/claims/          # Review donation claims
+│   │   │   ├── admin/awards/          # Award config CRUD
+│   │   │   ├── u/[username]/          # Public portfolio (SSR)
+│   │   │   ├── privacy/               # Privacy policy (SSR)
+│   │   │   └── terms/                 # Terms of service (SSR)
+│   │   ├── components/                # 22 components (10 display + 9 UI + 3 nav)
+│   │   └── lib/                       # api.ts, auth-context.tsx, utils.ts, blood-compatibility.ts
+│   ├── Dockerfile                     # Multi-stage (node:20-alpine, standalone)
+│   └── package.json                   # next 16.2.6, react 19, base-ui, tailwind v4
+├── docker-compose.yml                 # 5 services (postgres, redis, minio, backend, frontend)
+├── .github/workflows/ci.yml           # Lint + build both stacks
+├── .env.example                       # Config template
+├── PRD.md                             # Product requirements
+├── DESIGN.md                          # Vitality Flow design system
+├── README.md                          # Quick start
+└── docs/                              # 11 documentation files
 ```
-
----
 
 ## Project Rules
 
-1. **Language**: Source code in English; UI strings in Indonesian
-2. **Backend pattern**: Handler → Service → Repository (no direct DB in handlers)
-3. **Frontend pattern**: Pages use `"use client"` (client components); public portfolio is SSR
-4. **Auth**: JWT access + refresh token rotation (refresh token invalidated on use)
-5. **DB Migrations**: Auto-run on startup in `main.go` — no separate migration tool
-6. **Env config**: `.env` file loaded by godotenv in config; frontend uses `NEXT_PUBLIC_API_URL`
-7. **Style**: Glassmorphism design system ("Vitality Flow"), defined in `DESIGN.md`
-8. **Next.js**: Uses a very new version (16.2.6) with breaking changes; check `node_modules/next/dist/docs/`
-9. **UI Library**: Base UI React components from `@base-ui/react`, NOT Radix UI
-10. **Testing**: No tests exist yet (backend or frontend)
-
----
+1. **UI language**: Indonesian (`id-ID` locale, Indonesian labels/text)
+2. **Code language**: English (source code, comments, variable names)
+3. **Backend pattern**: Handler → Service → Repository (no direct DB in handlers)
+4. **Frontend pattern**: Pages use `"use client"` (client components); public portfolio, passport verify, privacy, terms are SSR
+5. **Auth**: JWT access (15m) + refresh token rotation (7d); refresh token invalidated on use
+6. **DB Migrations**: Auto-run idempotent DDL on startup — no migration tool
+7. **Rhesus**: Removed from all frontend UI; backend defaults to `"+"` on insert (DB column NOT NULL)
+8. **Donation volume**: ≤55 kg → 0.35 L/bag, >55 kg → 0.45 L/bag
+9. **Password**: All seed dummy accounts use `donor123`
+10. **Next.js 16.2.6**: `params` is `Promise<T>` — unwrapped with `use()`; `useSearchParams()` requires `<Suspense>`
+11. **UI library**: `@base-ui/react`, NOT Radix UI
+12. **Testing**: No tests exist yet
+13. **SMTP**: Optional; `SMTP_FROM` (fallback `SMTP_SENDER`); no-op when `SMTP_HOST` empty
 
 ## Development Workflow
 
 ```bash
-# Start infrastructure only
+# Start infrastructure
 docker compose up -d postgres redis minio
 
 # Backend hot reload
 cd backend && go run ./cmd/server
 
-# Frontend hot reload
+# Frontend hot reload (nvm needed)
+source "$HOME/.nvm/nvm.sh" && nvm use v20
 cd frontend && npm run dev
 ```
 
----
+## Key Env Vars
 
-## Deployment Workflow
-
-No production deployment config exists. Only Docker Compose for local dev. CI runs:
-- Backend: `go mod tidy`, `go vet`, `go build`
-- Frontend: `npm ci`, `npm run build`
-
----
+| Variable | Default | Notes |
+|---|---|---|
+| `JWT_SECRET` | — | Required; change for production |
+| `DB_HOST` | localhost | `postgres` in Docker |
+| `SMTP_HOST` | — | Empty = email is no-op |
+| `SMTP_FROM` | — | Fallback `SMTP_SENDER` |
+| `S3_ENDPOINT` | — | Empty = mock file service (returns fake URL) |
+| `SEED_ADMIN_EMAIL` | — | Set to auto-create super admin |
+| `APP_URL` | http://localhost:3000 | Used in email verification links |
 
 ## Security Notes
 
-- JWT secret must be changed in production (`JWT_SECRET`)
-- Phone numbers are exposed via API (search results include phone) — this is a known privacy gap vs PRD spec
 - CORS allows all origins (`*`)
-- No rate limiting implemented
-- No audit logging implemented
-- No HTTPS config in infrastructure
+- Phone numbers exposed in search API (known privacy gap vs PRD)
+- No rate limiting (except forgot-password: 1 req/min)
+- No audit logging
+- No HTTPS
+- No tests

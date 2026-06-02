@@ -23,13 +23,13 @@ func (r *UserRepository) Create(user *models.User) error {
 			full_name, phone, email, password_hash, role,
 			date_of_birth, gender, blood_type, rhesus,
 			weight_kg, height_cm, province, city, district,
-			latitude, longitude, username, email_verified
+			username, email_verified
 		)
 		VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
 			$10, $11, $12, $13, $14,
-			$15, $16, $17, $18
+			$15, $16
 		)
 		RETURNING id, created_at, updated_at
 	`
@@ -50,8 +50,6 @@ func (r *UserRepository) Create(user *models.User) error {
 		user.Province,
 		user.City,
 		user.District,
-		user.Latitude,
-		user.Longitude,
 		user.Username,
 		user.EmailVerified,
 	).Scan(
@@ -232,13 +230,24 @@ func (r *UserRepository) Select(dest interface{}, query string, args ...interfac
 	return r.db.Select(dest, query, args...)
 }
 
+func (r *UserRepository) UpdateTrustScore(userID string, score float64) error {
+	_, err := r.db.Exec("UPDATE users SET trust_score = $1, updated_at = NOW() WHERE id = $2", score, userID)
+	return err
+}
+
+func (r *UserRepository) UpdateVerificationLevel(userID string, level int) error {
+	_, err := r.db.Exec("UPDATE users SET verification_level = $1, updated_at = NOW() WHERE id = $2", level, userID)
+	return err
+}
+
 func (r *UserRepository) RefreshDonationStats(userID string) error {
 	_, err := r.db.Exec(`
 		UPDATE users SET
-			total_donations   = COALESCE((SELECT SUM(bags) FROM donor_histories WHERE user_id = $1), 0),
-			total_points      = COALESCE((SELECT SUM(bags) * 10 FROM donor_histories WHERE user_id = $1), 0),
-			last_donation_date = (SELECT MAX(donation_date) FROM donor_histories WHERE user_id = $1),
-			eligibility_status = CASE
+			total_donations     = COALESCE((SELECT SUM(bags) FROM donor_histories WHERE user_id = $1), 0),
+			total_points        = COALESCE((SELECT SUM(bags) * 10 FROM donor_histories WHERE user_id = $1), 0),
+			donation_volume_total = COALESCE((SELECT SUM(bags) * 0.45 FROM donor_histories WHERE user_id = $1), 0),
+			last_donation_date  = (SELECT MAX(donation_date) FROM donor_histories WHERE user_id = $1),
+			eligibility_status  = CASE
 				WHEN (SELECT MAX(donation_date) FROM donor_histories WHERE user_id = $1) IS NULL THEN 'eligible'
 				WHEN (SELECT MAX(donation_date) FROM donor_histories WHERE user_id = $1) <= CURRENT_DATE - INTERVAL '56 days' THEN 'eligible'
 				ELSE 'waiting_period'
@@ -246,6 +255,20 @@ func (r *UserRepository) RefreshDonationStats(userID string) error {
 			updated_at = NOW()
 		WHERE id = $1`, userID)
 	return err
+}
+
+func (r *UserRepository) SetNationalDonorID(userID, ndID string) error {
+	_, err := r.db.Exec("UPDATE users SET national_donor_id = $1, updated_at = NOW() WHERE id = $2", ndID, userID)
+	return err
+}
+
+func (r *UserRepository) FindByNationalDonorID(ndID string) (*models.User, error) {
+	var user models.User
+	err := r.db.Get(&user, "SELECT * FROM users WHERE national_donor_id = $1", ndID)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func (r *UserRepository) Search(filters map[string]interface{}) ([]*models.User, error) {

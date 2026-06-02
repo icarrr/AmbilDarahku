@@ -28,7 +28,7 @@ func main() {
 	seed.SeedAdmin(cfg, userRepo)
 
 	if cfg.SeedDummy {
-		seed.SeedDummy(db)
+		go seed.SeedDummy(db)
 	}
 
 	r := routes.Setup(cfg, db)

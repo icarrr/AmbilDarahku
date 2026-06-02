@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { MapPin, Grid3X3, List, SlidersHorizontal, MessageCircle, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Donor = {
   id: string;
@@ -22,6 +23,7 @@ type Donor = {
   availability_status: string;
   eligibility_status: string;
   phone: string;
+  username?: string;
   distance_km?: number;
   last_donation_date?: string;
 };
@@ -30,7 +32,12 @@ const BLOOD_TYPES = ["A", "B", "AB", "O"];
 const RADIUS_OPTIONS = ["5", "10", "15", "25", "50"];
 
 export default function SearchPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isUnverified } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isUnverified) router.replace("/verify-email");
+  }, [isUnverified, router]);
   const [donors, setDonors] = useState<Donor[]>([]);
   const [loading, setLoading] = useState(false);
   const [bloodType, setBloodType] = useState<string>("");
@@ -211,44 +218,49 @@ export default function SearchPage() {
               "gap-3",
               viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2" : "space-y-3"
             )}>
-              {donors.map((donor) => (
-                <GlassCard key={donor.id} className={cn(viewMode === "grid" ? "" : "flex items-center gap-3")}>
-                  <div className={cn(viewMode === "grid" ? "mb-3 text-center" : "flex-shrink-0")}>
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 font-heading text-sm font-bold text-white">
-                      {donor.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                    </div>
-                  </div>
-                  <div className={cn("flex-1", viewMode === "grid" ? "text-center" : "min-w-0")}>
-                    <div className="flex items-center gap-2 justify-center md:justify-start">
-                      <p className="truncate text-sm font-semibold text-foreground">{donor.full_name}</p>
-                      {donor.total_donations >= 10 && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">ELIT</span>
+              {donors.map((donor) => {
+                const profileHref = `/u/${donor.username || donor.id}`;
+                return (
+                  <GlassCard key={donor.id} className={cn(viewMode === "grid" ? "flex-col" : "flex items-center gap-3")}>
+                    <Link href={profileHref} className={cn("flex-1", viewMode === "grid" ? "text-center" : "flex items-center gap-3")}>
+                      <div className={cn(viewMode === "grid" ? "mb-3 text-center" : "flex-shrink-0")}>
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 font-heading text-sm font-bold text-white">
+                          {donor.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        </div>
+                      </div>
+                      <div className={cn(viewMode === "grid" ? "text-center" : "min-w-0")}>
+                        <div className="flex items-center gap-2 justify-center md:justify-start">
+                          <p className="truncate text-sm font-semibold text-foreground">{donor.full_name}</p>
+                          {donor.total_donations >= 10 && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">ELIT</span>
+                          )}
+                        </div>
+                        <div className={cn("mt-1 flex items-center gap-2 text-xs text-muted-foreground", viewMode === "grid" ? "justify-center" : "")}>
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{donor.city}{donor.distance_km ? ` (${donor.distance_km.toFixed(1)} km)` : ""}</span>
+                        </div>
+                        <div className={cn("mt-2 flex items-center gap-2", viewMode === "grid" ? "justify-center" : "")}>
+                          <BloodTypeBadge type={donor.blood_type} size="sm" />
+                          <StatusBadge status={donor.availability_status} dot />
+                        </div>
+                        <div className={cn("mt-1 flex gap-3 text-[10px] text-[#94a3b8]", viewMode === "grid" ? "justify-center" : "")}>
+                          {donor.last_donation_date && <span>Terakhir Donasi: {new Date(donor.last_donation_date).toLocaleDateString("id-ID", { month: "short", day: "numeric", year: "numeric" })}</span>}
+                          <span>Total: {donor.total_donations} Kantong</span>
+                        </div>
+                      </div>
+                    </Link>
+                    <div className={cn("flex flex-col gap-1.5", viewMode === "grid" ? "mt-3" : "flex-shrink-0")}>
+                      {donor.phone && (
+                        <a href={`https://wa.me/${donor.phone}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Hubungi via WhatsApp
+                        </a>
                       )}
                     </div>
-                    <div className={cn("mt-1 flex items-center gap-2 text-xs text-muted-foreground", viewMode === "grid" ? "justify-center" : "")}>
-                      <MapPin className="h-3 w-3" />
-                      <span className="truncate">{donor.city}{donor.distance_km ? ` (${donor.distance_km.toFixed(1)} km)` : ""}</span>
-                    </div>
-                    <div className={cn("mt-2 flex items-center gap-2", viewMode === "grid" ? "justify-center" : "")}>
-                      <BloodTypeBadge type={donor.blood_type} size="sm" />
-                      <StatusBadge status={donor.availability_status} dot />
-                    </div>
-                    <div className={cn("mt-1 flex gap-3 text-[10px] text-[#94a3b8]", viewMode === "grid" ? "justify-center" : "")}>
-                      {donor.last_donation_date && <span>Terakhir Donasi: {new Date(donor.last_donation_date).toLocaleDateString("id-ID", { month: "short", day: "numeric", year: "numeric" })}</span>}
-                      <span>Total: {donor.total_donations} Kantong</span>
-                    </div>
-                  </div>
-                  <div className={cn("flex flex-col gap-1.5", viewMode === "grid" ? "mt-3" : "flex-shrink-0")}>
-                    {donor.phone && (
-                      <a href={`https://wa.me/${donor.phone}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Hubungi via WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </GlassCard>
-              ))}
+                  </GlassCard>
+                );
+              })}
             </div>
           )}
         </div>

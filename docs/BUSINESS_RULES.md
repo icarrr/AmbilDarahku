@@ -2,58 +2,65 @@
 
 ## Donor Eligibility
 
-**Rule**: A donor is eligible to donate again 90 days after their last donation.
+**Rule**: A donor can donate again 56 days after their last donation.
 
-- Source: `donor_status_service.go:17` (`const eligibilityDays = 90`)
+- Source: `interval_rule.go`
 - If `last_donation_date` is NULL → eligible (new donor)
-- If `days_since >= 90` → "eligible"
-- If `days_since < 90` → "recovery"
-- Evaluation happens on-demand via `GET /donor-status` and during `PUT /donor-status`
+- If `days_since >= 56` → "eligible"
+- If `days_since < 56` → "waiting_period"
+- First-time donor: age 17-60; repeat: up to 65 (60-65 = needs_clearance)
+- Minimum weight: 45 kg
+
+| Status | Meaning |
+|---|---|
+| `eligible` | Can donate now |
+| `waiting_period` | Must wait (remaining days shown) |
+| `not_eligible` | Fails a hard rule (age, weight) |
+| `needs_clearance` | Age 60-65 (repeat donor), needs medical clearance |
 
 ## Availability Mode
 
 | Mode | Behavior |
 |---|---|
-| `automatic` (default) | Status follows eligibility: Eligible → Available, Recovery → Temporarily Unavailable |
-| `manual` | User controls status directly; can set reason and ready-again date |
-
-- Source: `donor_status_service.go:47-58`
+| `automatic` (default) | Status follows eligibility: Eligible → Available, Waiting → Temporarily Unavailable |
+| `manual` | User controls status directly; can set reason and ready_again_date |
 
 ## Search Priority (P1-P4)
 
 | Priority | Condition |
 |---|---|
 | P1 | Eligible + Available |
-| P2 | Eligible + Ready Again Date <= 3 days from now |
-| P3 | Eligible + Ready Again Date <= 7 days from now |
-| P4 | Recovery (or any other state) |
+| P2 | Eligible + Ready Again Date ≤ 3 days from now |
+| P3 | Eligible + Ready Again Date ≤ 7 days from now |
+| P4 | Any other state |
 
-- Source: `donor_status_service.go:102-123`
+## Donation Volume
 
-## User Registration Validation
+- Weight ≤ 55 kg → **0.35 L** per bag
+- Weight > 55 kg → **0.45 L** per bag
+- Total volume = bags × volume_per_bag (displayed via `toFixed(2)`)
 
-- Email must be unique (checked before insert)
-- Phone must be unique
-- Password hashed with bcrypt
-- Required fields: full_name, phone, email, password, date_of_birth, gender, blood_type, rhesus, weight_kg, height_cm, province, city, district, latitude, longitude
-- Role defaults to "donor"
+## Donation History
 
-- Source: `auth_service.go:58-92`
+- Duplicate-date guard: 409 if record already exists for user on same day
+- Creating a history record triggers `RefreshDonationStats` (recalculates total_donations, total_points, eligibility, donation_volume_total, and auto-awards badges)
+- Updating proof photo auto-sets verification_status = "verified"
+- Blood request fulfillment auto-creates a verified donor history (if none exists today)
 
-## Blood Request Rules
+## Blood Requests
 
 | Field | Validation |
 |---|---|
 | `blood_type` | Must be A, B, AB, or O |
-| `rhesus` | Must be + or - |
-| `urgency` | Must be critical, urgent, or normal |
+| `rhesus` | Hardcoded to "+" on creation (not requested from user) |
+| `urgency` | critical, urgent, or normal |
 | `status` | Default "open"; can be "fulfilled" or "cancelled" |
 | `bags` | Defaults to 1 if < 1 |
 
-- Open requests sorted by urgency then recency: critical → urgent → normal
-- Source: `blood_request_repository.go:59`
+- Open requests sorted by urgency (critical→urgent→normal), then created_at DESC
+- Fulfillment: atomic increment of `fulfilled_bags` with row-level lock; auto-closes when fulfilled >= bags
 
-## Badge Thresholds
+## Badge Thresholds (auto-awarded)
 
 | Donations | Badge |
 |---|---|
@@ -64,37 +71,57 @@
 | 50 | Legend |
 | 100 | Blood Champion |
 
-- Badges are seeded on startup but **not** automatically awarded — no trigger logic exists.
+Badges are auto-awarded by `RefreshDonationStats` whenever donation count changes (new history, approved claim, fulfilled request).
 
-## Donor History Verification
+## Donor Passport
+
+- Passport number format: `ADK-YYYY-NNNNNN` (year + 6-digit sequential)
+- QR token: 64-char hex string (random, embedded in URL path)
+- One passport per user (UNIQUE constraint on user_id)
+- Passport can be renewed (updates `last_renewed_at`)
+- Initial issuance sets `national_donor_id` on the user record
+
+## Donation Claims
 
 | Status | Meaning |
 |---|---|
-| `pending` | Default on creation |
-| `verified` | Admin confirmed |
-| `rejected` | Admin rejected |
+| `pending` | Default on creation; editable, cancelable |
+| `approved` | Admin/PMI approved; triggers `RefreshDonationStats` (does NOT auto-create donor_history — manual reconciliation prevents duplicates) |
+| `rejected` | Admin/PMI rejected; rejection_reason required |
 
-- Up to 3 proof types: photo, card, letter
-- Verification can be done by community or PMI (verifier_role in `donor_verifications`)
+- Only pending claims can be updated or cancelled
+- Approved claims call `RefreshDonationStats` (recalculates donor totals)
 
-## User Roles
+## Verification Levels
 
-| Role | Allowed Actions |
-|---|---|
-| `donor` | All authenticated endpoints |
-| `super_admin` | All donor actions + admin endpoints |
-| `community_admin` | Schema-only; no specific routes enforced |
-| `pmi_admin` | Schema-only; no specific routes enforced |
-| `hospital_admin` | Schema-only; no specific routes enforced |
+| Level | Name | Description |
+|---|---|---|
+| 0 | None | Default; no verification |
+| 1 | Self Report | Donor self-reports data |
+| 2 | Community Verified | Community admin confirms |
+| 3 | PMI Verified | Official PMI verification |
 
-- Admin routes protected by `middleware.AdminRequired()` which checks `role == "super_admin"`
-- Source: `middleware/auth.go:55-63`
+- Approval of a verification request auto-updates the user's `verification_level`
+- Cannot submit duplicate pending request for same level
+
+## Trust Score
+
+5 components, calculated on-the-fly:
+
+| Component | Weight | Description |
+|---|---|---|
+| Donation Count | 30% | Based on total_donations vs max (scored 0-100) |
+| Verification Level | 30% | 0→0, 1→30, 2→60, 3→100 |
+| Claim Accuracy | 20% | Ratio of approved claims to total claims |
+| Profile Complete | 10% | Percentage of filled profile fields |
+| Account Age | 10% | Years since created_at (capped at 5) |
+
+Overall = weighted average, stored in `users.trust_score` (DECIMAL 5,2).
 
 ## Password Rules
 
-- Min length: 6 characters (frontend placeholder hint)
+- Min length: 6 characters
 - Hashing: bcrypt (DefaultCost)
-- Source: `pkg/utils/password.go`
 
 ## Token Rules
 
@@ -106,11 +133,31 @@
 - Refresh token rotation: old token deleted on use, new pair issued
 - Refresh token stored as SHA-256 hash in DB
 - Logout deletes all refresh tokens for the user
-- Source: `auth_service.go`, `refresh_token_repository.go`
 
-## Privacy Rule (PRD)
+## User Roles
 
-- Phone numbers should not be exposed publicly on portfolio pages
-- **Implemented**: Public portfolio (`/u/:username`) does NOT include phone
-- **NOT Implemented**: Search results (`GET /donors`) include phone numbers (exposed to any caller)
-- Source: `user_handler.go:158-176`, `search_handler.go` returns full user model incl phone
+| Role | Allowed Actions |
+|---|---|
+| `donor` | All authenticated + verified-email endpoints |
+| `super_admin` | All donor actions + admin endpoints + PMI review |
+| `pmi_admin` | PMI review queue (claims, verifications, analytics) |
+| `community_admin` | Schema-only; no specific routes enforced |
+| `hospital_admin` | Schema-only; no specific routes enforced |
+
+## Privacy Rules
+
+- Public portfolio (`/u/:username`) excludes phone number and email
+- Search results (`GET /donors`) include phone numbers but endpoint is now auth-gated (JWT required since the fix)
+- Rhesus NOT shown in UI at all (removed from all frontend files)
+- Navigation paths in bottom-nav show all links for logged-in users
+
+## Unverified User Restrictions
+
+Unverified users (email not verified) can only access:
+- GET /api/v1/auth/me
+- PUT /api/v1/auth/me
+- POST /api/v1/auth/logout
+- POST /api/v1/auth/resend-verification
+- PUT /api/v1/auth/change-password
+
+Frontend also blocks: /search, /requests, /requests/new, /requests/share/[id] with redirect to verify-email page.

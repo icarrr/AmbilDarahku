@@ -52,8 +52,6 @@ type RegisterInput struct {
 	Province    string  `json:"province"`
 	City        string  `json:"city"`
 	District    string  `json:"district"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
 }
 
 type AuthResult struct {
@@ -101,6 +99,7 @@ func (s *AuthService) Register(input *RegisterInput) (*AuthResult, error) {
 		Phone:        input.Phone,
 		Email:        input.Email,
 		PasswordHash: hash,
+		Role:         "donor",
 		DateOfBirth:  dateOfBirth,
 		Gender:       input.Gender,
 		BloodType:    input.BloodType,
@@ -110,8 +109,6 @@ func (s *AuthService) Register(input *RegisterInput) (*AuthResult, error) {
 		Province:     input.Province,
 		City:         input.City,
 		District:     input.District,
-		Latitude:     input.Latitude,
-		Longitude:    input.Longitude,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {

@@ -167,7 +167,7 @@ func RunMigrations(db *sqlx.DB) {
 
 	ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS fulfilled_bags INT NOT NULL DEFAULT 0;
 
-	ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
 
 	UPDATE users SET eligibility_status = 'waiting_period' WHERE eligibility_status = 'recovery';
 	ALTER TABLE users DROP CONSTRAINT IF EXISTS users_eligibility_status_check;
@@ -187,6 +187,81 @@ func RunMigrations(db *sqlx.DB) {
 
 	CREATE INDEX IF NOT EXISTS idx_verification_tokens_token ON verification_tokens(token);
 	CREATE INDEX IF NOT EXISTS idx_verification_tokens_user ON verification_tokens(user_id);
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS national_donor_id VARCHAR(20) UNIQUE;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS donation_volume_total DECIMAL(10,2) NOT NULL DEFAULT 0;
+
+	CREATE TABLE IF NOT EXISTS donor_passports (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+		passport_number VARCHAR(20) UNIQUE NOT NULL,
+		qr_token VARCHAR(64) UNIQUE NOT NULL,
+		issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		last_renewed_at TIMESTAMPTZ,
+		is_active BOOLEAN NOT NULL DEFAULT true,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_donor_passports_user ON donor_passports(user_id);
+	CREATE INDEX IF NOT EXISTS idx_donor_passports_qr ON donor_passports(qr_token);
+
+	CREATE TABLE IF NOT EXISTS donation_claims (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		donation_date DATE NOT NULL,
+		location VARCHAR(255) NOT NULL,
+		institution_name VARCHAR(255) NOT NULL DEFAULT '',
+		blood_type VARCHAR(3) NOT NULL DEFAULT '',
+		volume_ml INTEGER NOT NULL DEFAULT 350,
+		proof_photo_url TEXT,
+		proof_document_url TEXT,
+		additional_notes TEXT,
+		status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+		reviewed_by UUID REFERENCES users(id),
+		reviewed_at TIMESTAMPTZ,
+		rejection_reason TEXT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_donation_claims_user ON donation_claims(user_id);
+	CREATE INDEX IF NOT EXISTS idx_donation_claims_status ON donation_claims(status);
+
+	ALTER TABLE donor_histories ADD COLUMN IF NOT EXISTS claim_id UUID REFERENCES donation_claims(id);
+	ALTER TABLE donor_histories ADD COLUMN IF NOT EXISTS verification_level VARCHAR(20) DEFAULT 'self' CHECK (verification_level IN ('self', 'community', 'organizer', 'hospital', 'pmi'));
+	ALTER TABLE donor_histories ADD COLUMN IF NOT EXISTS verification_source VARCHAR(100);
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_level INT NOT NULL DEFAULT 0;
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS trust_score DECIMAL(5,2) NOT NULL DEFAULT 0;
+
+	ALTER TABLE users ALTER COLUMN latitude SET DEFAULT 0;
+	ALTER TABLE users ALTER COLUMN longitude SET DEFAULT 0;
+
+	CREATE TABLE IF NOT EXISTS award_configs (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		name VARCHAR(100) NOT NULL,
+		description TEXT,
+		award_type VARCHAR(20) NOT NULL DEFAULT 'title' CHECK (award_type IN ('badge', 'title', 'certificate')),
+		criteria JSONB NOT NULL DEFAULT '{}',
+		scope VARCHAR(20) NOT NULL DEFAULT 'national' CHECK (scope IN ('national', 'regional', 'city')),
+		scope_value VARCHAR(100),
+		is_active BOOLEAN NOT NULL DEFAULT true,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS user_titles (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		title VARCHAR(100) NOT NULL,
+		awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		source VARCHAR(50) NOT NULL DEFAULT 'auto',
+		config_id UUID REFERENCES award_configs(id),
+		description TEXT
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_user_titles_user ON user_titles(user_id);
 	`
 
 	_, err := db.Exec(schema)

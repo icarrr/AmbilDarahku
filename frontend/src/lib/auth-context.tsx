@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 type User = {
@@ -24,6 +25,9 @@ type User = {
   longitude?: number;
   weight_kg?: number;
   height_cm?: number;
+  verification_level?: number;
+  trust_score?: number;
+  last_donation_date?: string;
 };
 
 type AuthContextType = {
@@ -50,13 +54,14 @@ type RegisterData = {
   province: string;
   city: string;
   district: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     setUser(null);
+    router.push("/");
   };
 
   return (

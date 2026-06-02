@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GlassCard } from "@/components/glass-card";
-import { Droplets, Hospital, User, ArrowLeft, CheckCircle, HeartHandshake, MessageCircle } from "lucide-react";
+import { Droplets, Hospital, User, ArrowLeft, CheckCircle, HeartHandshake, MessageCircle, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -38,13 +38,14 @@ type Fulfillment = {
 export default function ShareCardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isUnverified } = useAuth();
   const [request, setRequest] = useState<BloodRequest | null>(null);
   const [fulfillments, setFulfillments] = useState<Fulfillment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [donorBags, setDonorBags] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [eligibilityStatus, setEligibilityStatus] = useState<string | null>(null);
 
   const fetchData = () => {
     api.get<{ request: BloodRequest }>(`/requests/${id}`)
@@ -67,10 +68,25 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (user) {
+      api.get<{ eligibility_status: string }>("/donor-status")
+        .then(d => setEligibilityStatus(d.eligibility_status))
+        .catch(() => setEligibilityStatus(null));
+    } else {
+      setEligibilityStatus(null);
+    }
+  }, [user]);
+
   const handleFulfill = async () => {
     if (!user) {
       toast.error("Silakan masuk terlebih dahulu");
       router.push("/login");
+      return;
+    }
+    if (isUnverified) {
+      toast.error("Verifikasi email terlebih dahulu");
+      router.push("/verify-email");
       return;
     }
     setSubmitting(true);
@@ -108,7 +124,14 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
 
   const bloodDisplay = request.blood_type;
   const userBloodDisplay = user ? user.blood_type : "";
-  const isCompatible = true;
+  const baseType = (t: string) => t.replace(/[+-]$/, "");
+  const compatibleBase: Record<string, string[]> = {
+    O: ["O"], A: ["O", "A"], B: ["O", "B"], AB: ["O", "A", "B", "AB"],
+  };
+  const compatibleForRequest = compatibleBase[baseType(bloodDisplay)] || [];
+  const isCompatible = user ? compatibleForRequest.includes(baseType(userBloodDisplay)) : true;
+  const isWaitingOrIneligible = !!user && eligibilityStatus != null && eligibilityStatus !== "eligible";
+  const isButtonDisabled = !isCompatible || isWaitingOrIneligible || !user || isUnverified;
   const pageUrl = typeof window !== "undefined" ? window.location.href : "";
   const remaining = request.bags - (request.fulfilled_bags || 0);
   const progress = request.bags > 0 ? ((request.fulfilled_bags || 0) / request.bags) * 100 : 0;
@@ -139,6 +162,16 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 text-center">
               <BloodTypeBadge type={bloodDisplay} size="lg" className="text-3xl px-5 py-3" />
+              {!isFulfilled && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Donor cocok</p>
+                  <div className="flex flex-wrap justify-center gap-1">
+                    {compatibleForRequest.map(t => (
+                      <span key={t} className="rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-bold text-red-600">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mt-2">
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
@@ -234,22 +267,36 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
                     router.push("/login");
                     return;
                   }
+                  if (isUnverified) {
+                    toast.error("Verifikasi email terlebih dahulu");
+                    router.push("/verify-email");
+                    return;
+                  }
+                  if (isWaitingOrIneligible) return;
                   if (!isCompatible) return;
                   setShowForm(true);
                 }}
-                disabled={!isCompatible}
+                disabled={isButtonDisabled}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-colors ${
-                  isCompatible
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "cursor-not-allowed bg-gray-200 text-gray-400"
+                  isButtonDisabled
+                    ? "cursor-not-allowed bg-gray-200 text-gray-400"
+                    : "bg-red-600 hover:bg-red-700"
                 }`}
               >
-                <HeartHandshake className="h-4 w-4" />
-                Saya Sudah Donor
+                {isWaitingOrIneligible ? <AlertCircle className="h-4 w-4" /> : <HeartHandshake className="h-4 w-4" />}
+                {isWaitingOrIneligible ? "Dalam Masa Tunggu" : "Saya Sudah Donor"}
               </button>
-              {!isCompatible && user && (
+              {isButtonDisabled && user && (
                 <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  Golongan darah Anda ({userBloodDisplay}) tidak cocok untuk pasien ({bloodDisplay})
+                  {isUnverified
+                    ? "Verifikasi email terlebih dahulu"
+                    : !isCompatible
+                      ? `Golongan darah Anda (${userBloodDisplay}) tidak cocok untuk pasien (${bloodDisplay})`
+                      : eligibilityStatus === "waiting_period"
+                        ? "Anda masih dalam masa tunggu donor"
+                        : eligibilityStatus === "not_eligible"
+                          ? "Anda belum memenuhi syarat donor"
+                          : "Silakan masuk untuk donor"}
                   <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                 </div>
               )}

@@ -39,6 +39,7 @@ type PublicProfile = {
   full_name: string;
   blood_type: string;
   city: string;
+  weight_kg: number;
   total_donations: number;
   total_points: number;
   availability_status: string;
@@ -46,6 +47,10 @@ type PublicProfile = {
   last_donation_date?: string;
   gender: string;
   badges: UserBadge[];
+  national_donor_id?: string;
+  donation_volume_total?: number;
+  verification_level?: number;
+  trust_score?: number;
 };
 
 async function getProfile(username: string): Promise<PublicProfile | null> {
@@ -75,7 +80,8 @@ export default async function PublicPortfolioPage({
   const badges = profile.badges || [];
   const topBadge = badges[0]?.badge?.name || "Donor";
   const isAvailable = profile.availability_status === "available" && profile.eligibility_status === "eligible";
-  const liters = (profile.total_donations * 0.35).toFixed(1);
+  const volumePerBag = profile.weight_kg && profile.weight_kg <= 55 ? 0.35 : 0.45;
+  const liters = (profile.total_donations * volumePerBag).toFixed(2);
   const livesSaved = profile.total_donations * 3;
 
   return (
@@ -143,9 +149,61 @@ export default async function PublicPortfolioPage({
           <ShieldCheck className="mx-auto h-5 w-5 text-amber-500" />
           <p className="mt-1 font-heading text-3xl font-bold text-foreground">{profile.total_points}</p>
           <p className="text-xs text-muted-foreground">Poin</p>
-          <p className="text-xs text-[#94a3b8]">{badges.length} badge</p>
+          <p className="text-xs text-[#94a3b8]">{badges.length} {badges.length === 1 ? "badge" : "badges"}</p>
         </GlassCard>
       </div>
+
+      {profile.national_donor_id && (
+        <GlassCard className="mt-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Nomor Identitas Donor</p>
+              <p className="font-mono text-sm font-bold text-foreground">{profile.national_donor_id}</p>
+            </div>
+            {profile.verification_level !== undefined && (
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-medium text-blue-700">
+                Verif Lv.{profile.verification_level}/3
+              </span>
+            )}
+          </div>
+        </GlassCard>
+      )}
+
+      {profile.trust_score !== undefined && profile.trust_score > 0 && (
+        <GlassCard className="mt-4">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+              profile.trust_score >= 80 ? "bg-green-50" :
+              profile.trust_score >= 60 ? "bg-amber-50" : "bg-gray-50"
+            }`}>
+              <Heart className={`h-5 w-5 ${
+                profile.trust_score >= 80 ? "text-green-600" :
+                profile.trust_score >= 60 ? "text-amber-600" : "text-gray-500"
+              }`} />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Skor Kepercayaan</p>
+              <div className="flex items-center gap-2">
+                <p className="font-heading text-xl font-bold text-foreground">
+                  {profile.trust_score.toFixed(1)}
+                </p>
+                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
+                  <div
+                    className={`h-full rounded-full ${
+                      profile.trust_score >= 80 ? "bg-green-500" :
+                      profile.trust_score >= 60 ? "bg-amber-500" : "bg-gray-400"
+                    }`}
+                    style={{ width: `${Math.min(profile.trust_score, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       <GlassCard className="mt-4">
         <h3 className="font-heading text-sm font-semibold text-foreground mb-3">

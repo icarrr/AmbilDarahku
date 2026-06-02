@@ -82,16 +82,21 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 }
 
 type PublicProfile struct {
-	FullName           string                `json:"full_name"`
-	BloodType          string                `json:"blood_type"`
-	City               string                `json:"city"`
-	TotalDonations     int                   `json:"total_donations"`
-	TotalPoints        int                   `json:"total_points"`
-	AvailabilityStatus string                `json:"availability_status"`
-	EligibilityStatus  string                `json:"eligibility_status"`
-	LastDonationDate   *time.Time             `json:"last_donation_date,omitempty"`
-	Gender             string                `json:"gender"`
-	Badges             []*models.UserBadge   `json:"badges,omitempty"`
+	FullName            string              `json:"full_name"`
+	BloodType           string              `json:"blood_type"`
+	City                string              `json:"city"`
+	WeightKg            float64             `json:"weight_kg"`
+	TotalDonations      int                 `json:"total_donations"`
+	TotalPoints         int                 `json:"total_points"`
+	AvailabilityStatus  string              `json:"availability_status"`
+	EligibilityStatus   string              `json:"eligibility_status"`
+	LastDonationDate    *time.Time          `json:"last_donation_date,omitempty"`
+	Gender              string              `json:"gender"`
+	Badges              []*models.UserBadge `json:"badges,omitempty"`
+	NationalDonorID     *string             `json:"national_donor_id,omitempty"`
+	DonationVolumeTotal float64             `json:"donation_volume_total"`
+	VerificationLevel   int                 `json:"verification_level"`
+	TrustScore          float64             `json:"trust_score"`
 }
 
 type UserListItem struct {
@@ -182,15 +187,20 @@ func (h *UserHandler) GetPublicProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, PublicProfile{
-		FullName:           user.FullName,
-		BloodType:          user.BloodType,
-		City:               user.City,
-		TotalDonations:     user.TotalDonations,
-		TotalPoints:        user.TotalPoints,
-		AvailabilityStatus: user.AvailabilityStatus,
-		EligibilityStatus:  user.EligibilityStatus,
-		LastDonationDate:   user.LastDonationDate,
-		Gender:             user.Gender,
-		Badges:             badges,
+		FullName:            user.FullName,
+		BloodType:           user.BloodType,
+		City:                user.City,
+		WeightKg:            user.WeightKg,
+		TotalDonations:      user.TotalDonations,
+		TotalPoints:         user.TotalPoints,
+		AvailabilityStatus:  user.AvailabilityStatus,
+		EligibilityStatus:   user.EligibilityStatus,
+		LastDonationDate:    user.LastDonationDate,
+		Gender:              user.Gender,
+		Badges:              badges,
+		NationalDonorID:     user.NationalDonorID,
+		DonationVolumeTotal: user.DonationVolumeTotal,
+		VerificationLevel:   user.VerificationLevel,
+		TrustScore:          user.TrustScore,
 	})
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -23,11 +25,12 @@ function VerifyEmailContent() {
       return;
     }
     api.post<{ message: string; access_token: string; refresh_token: string }>("/auth/verify-email", { token }, false)
-      .then((data) => {
+      .then(async (data) => {
         if (data.access_token) {
           localStorage.setItem("access_token", data.access_token);
           if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
         }
+        await refreshUser();
         setStatus("success");
         setMessage("Email berhasil diverifikasi!");
         setTimeout(() => router.push("/profile"), 1500);

@@ -23,6 +23,11 @@ func Setup(cfg *config.Config, db *sqlx.DB) *gin.Engine {
 	badgeRepo := repositories.NewBadgeRepository(db)
 	refreshRepo := repositories.NewRefreshTokenRepository(db)
 	verifTokenRepo := repositories.NewVerificationTokenRepository(db)
+	passportRepo := repositories.NewDonorPassportRepository(db)
+	claimRepo := repositories.NewDonationClaimRepository(db)
+	verifRepo := repositories.NewDonorVerificationRepository(db)
+	titleRepo := repositories.NewUserTitleRepository(db)
+	configRepo := repositories.NewAwardConfigRepository(db)
 
 	emailSvc := services.NewEmailService(cfg)
 	authService := services.NewAuthService(userRepo, refreshRepo, badgeRepo, verifTokenRepo, emailSvc, cfg)
@@ -37,6 +42,15 @@ func Setup(cfg *config.Config, db *sqlx.DB) *gin.Engine {
 	statusHandler := handlers.NewDonorStatusHandler(statusService, userRepo)
 	eventRepo := repositories.NewEventRepository(db)
 	eventHandler := handlers.NewEventHandler(eventRepo)
+	passportHandler := handlers.NewPassportHandler(passportRepo, userRepo, badgeRepo)
+	claimHandler := handlers.NewClaimHandler(claimRepo, userRepo)
+	verificationHandler := handlers.NewVerificationHandler(verifRepo, userRepo)
+	timelineHandler := handlers.NewTimelineHandler(verifRepo)
+	recognitionHandler := handlers.NewRecognitionHandler(userRepo, badgeRepo, titleRepo, configRepo, passportRepo)
+	adminHandler := handlers.NewAdminHandler(db, claimRepo, verifRepo, userRepo)
+	trustSvc := services.NewTrustService(db)
+	trustHandler := handlers.NewTrustHandler(trustSvc, userRepo)
+	analyticsHandler := handlers.NewAnalyticsHandler(db, userRepo, trustSvc)
 
 	api := r.Group("/api/v1")
 	{
@@ -71,14 +85,19 @@ func Setup(cfg *config.Config, db *sqlx.DB) *gin.Engine {
 		api.GET("/requests/:id", requestHandler.GetByID)
 		api.GET("/requests/:id/fulfillments", requestHandler.ListFulfillments)
 
-		api.GET("/donors", searchHandler.Search)
 		api.GET("/leaderboard/national", leaderboardHandler.National)
 		api.GET("/leaderboard/regional", leaderboardHandler.Regional)
 		api.GET("/events", eventHandler.List)
+		api.GET("/passport/verify/:token", passportHandler.VerifyByQR)
+		api.GET("/passport/:username", passportHandler.GetPassportByUsername)
+		api.GET("/timeline/:username", timelineHandler.GetPublicTimeline)
+		api.GET("/recognition/:username", recognitionHandler.GetPublicPortfolio)
+		api.GET("/trust-score/:username", trustHandler.GetPublicTrustScore)
 
 		auth := api.Group("")
 		auth.Use(middleware.AuthRequired(cfg.JWTSecret))
 		{
+			auth.GET("/donors", searchHandler.Search)
 			auth.GET("/auth/me", userHandler.GetProfile)
 			auth.PUT("/auth/me", userHandler.UpdateProfile)
 			auth.POST("/auth/logout", authHandler.Logout)
@@ -100,12 +119,54 @@ func Setup(cfg *config.Config, db *sqlx.DB) *gin.Engine {
 				verified.GET("/donor-status", statusHandler.GetStatus)
 				verified.PUT("/donor-status", statusHandler.UpdateStatus)
 
+				verified.GET("/donor-verification", verificationHandler.GetMyVerification)
+				verified.POST("/donor-verification", verificationHandler.SubmitVerification)
+				verified.GET("/recognition", recognitionHandler.GetPortfolio)
+				verified.GET("/timeline", timelineHandler.GetMyTimeline)
+
+				verified.GET("/passport", passportHandler.GetMyPassport)
+				verified.POST("/passport/request", passportHandler.RequestPassport)
+				verified.POST("/passport/renew", passportHandler.RenewPassport)
+
+				verified.GET("/trust-score", trustHandler.GetOwnTrustScore)
+				verified.POST("/trust-score/refresh", trustHandler.RefreshTrustScore)
+
+				verified.GET("/claims", claimHandler.ListMyClaims)
+				verified.POST("/claims", claimHandler.CreateClaim)
+				verified.GET("/claims/:id", claimHandler.GetClaim)
+				verified.PUT("/claims/:id", claimHandler.UpdateClaim)
+				verified.DELETE("/claims/:id", claimHandler.CancelClaim)
+
 				admin := verified.Group("")
 				admin.Use(middleware.AdminRequired())
 				{
 					admin.GET("/admin/users", userHandler.ListAll)
 					admin.PUT("/admin/users/:id/role", userHandler.UpdateUserRole)
 					admin.POST("/events", eventHandler.Create)
+					admin.GET("/admin/awards", recognitionHandler.ListAwardConfigs)
+					admin.POST("/admin/awards", recognitionHandler.CreateAwardConfig)
+					admin.PUT("/admin/awards/:id", recognitionHandler.UpdateAwardConfig)
+					admin.DELETE("/admin/awards/:id", recognitionHandler.DeleteAwardConfig)
+					admin.POST("/admin/titles", recognitionHandler.AwardTitle)
+					admin.GET("/admin/titles", recognitionHandler.ListAllTitles)
+				}
+
+				pmi := verified.Group("")
+				pmi.Use(middleware.PMIOrAdminRequired())
+				{
+					pmi.GET("/admin/stats", adminHandler.GetStats)
+					pmi.GET("/admin/claims", adminHandler.ListPendingClaims)
+					pmi.GET("/admin/claims/:id", adminHandler.GetClaimDetail)
+					pmi.PUT("/admin/claims/:id/review", claimHandler.ReviewClaim)
+					pmi.GET("/admin/verifications", adminHandler.ListPendingVerifications)
+					pmi.PUT("/admin/verifications/:id/review", verificationHandler.ReviewVerification)
+
+					pmi.GET("/admin/analytics/institutions", analyticsHandler.GetDonationsByInstitution)
+					pmi.GET("/admin/analytics/cities", analyticsHandler.GetDonationsByCity)
+					pmi.GET("/admin/analytics/years", analyticsHandler.GetDonationsByYear)
+					pmi.GET("/admin/analytics/months", analyticsHandler.GetDonationsByMonth)
+					pmi.GET("/admin/analytics/age", analyticsHandler.GetAgeDistribution)
+					pmi.GET("/admin/analytics/top-donors", analyticsHandler.GetTopDonors)
 				}
 			}
 		}

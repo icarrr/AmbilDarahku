@@ -72,15 +72,20 @@ export default function EventsPage() {
           ))}
         </div>
       ) : events.length === 0 ? (
-        <GlassCard className="py-12 text-center">
-          <CalendarDays className="mx-auto h-10 w-10 text-gray-300" />
-          <p className="mt-2 text-sm text-muted-foreground">Belum ada event donor darah</p>
-          <p className="text-xs text-[#94a3b8]">Pantau terus untuk event terbaru</p>
+        <GlassCard className="py-12 text-center animate-fade-in">
+          <CalendarDays className="mx-auto h-12 w-12 text-gray-200" />
+          <p className="mt-2 font-medium text-foreground">Belum ada event donor darah</p>
+          <p className="text-xs text-muted-foreground">Pantau terus untuk event terbaru</p>
+          {isAdmin && (
+            <Link href="/events/new">
+              <Button variant="outline" className="mt-4"><Plus className="h-4 w-4 mr-1" /> Buat Event</Button>
+            </Link>
+          )}
         </GlassCard>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {events.map(event => (
-            <GlassCard key={event.id} elevated className="flex flex-col">
+          {events.map((event, i) => (
+            <GlassCard key={event.id} elevated className={`flex flex-col animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <div className="flex items-start gap-4">
                 <div className="flex flex-col items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-center min-w-[56px]">
                   <span className="text-xs font-bold text-red-600">{day(event.event_date)}</span>

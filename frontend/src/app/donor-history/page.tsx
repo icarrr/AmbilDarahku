@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X } from "lucide-react";
+import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton";
 
 type History = {
   id: string;
@@ -20,10 +21,13 @@ type History = {
   notes?: string;
   proof_photo?: string;
   verification_status: string;
+  verification_level?: string;
+  verification_source?: string;
 };
 
 export default function DonorHistoryPage() {
   const [histories, setHistories] = useState<History[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -34,7 +38,7 @@ export default function DonorHistoryPage() {
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get<{ histories: History[] }>("/donor-history").then(d => setHistories(d.histories || [])).catch(() => {});
+    api.get<{ histories: History[] }>("/donor-history").then(d => setHistories(d.histories || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,12 +178,18 @@ export default function DonorHistoryPage() {
         </GlassCard>
       )}
 
-      {histories.length === 0 && !showForm && (
-        <div className="py-16 text-center">
-          <Droplets className="mx-auto h-10 w-10 text-gray-200" />
-          <p className="mt-3 text-sm text-muted-foreground">Belum ada riwayat donor</p>
-          <p className="text-xs text-[#94a3b8]">Mulai catat riwayat donor darah Anda</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowForm(true)}>
+      {loading && (
+        <div className="space-y-3">
+          {[1,2,3].map(i => <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}><SkeletonCard /></div>)}
+        </div>
+      )}
+
+      {!loading && histories.length === 0 && !showForm && (
+        <div className="py-16 text-center animate-fade-in">
+          <ScrollText className="mx-auto h-12 w-12 text-gray-200" />
+          <p className="mt-3 font-medium text-foreground">Belum ada riwayat donor</p>
+          <p className="text-sm text-muted-foreground">Catat riwayat donor darah Anda untuk mulai mendapat badge dan poin.</p>
+          <Button className="mt-4" onClick={() => setShowForm(true)}>
             <Plus className="mr-1 h-3 w-3" />
             Tambah Riwayat
           </Button>
@@ -187,24 +197,30 @@ export default function DonorHistoryPage() {
       )}
 
       <div className="space-y-3">
-        {histories.map((h) => (
-          <GlassCard key={h.id}>
+        {histories.map((h, i) => (
+          <GlassCard key={h.id} className={`animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-red-50">
                 <Droplets className="h-5 w-5 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{formatDate(h.donation_date)}</p>
-                    <p className="text-xs text-muted-foreground">{h.institution}{h.location ? ` • ${h.location}` : ""}</p>
-                    <p className="mt-0.5 text-xs text-[#94a3b8]">{h.bags} kantong{h.notes ? ` • ${h.notes}` : ""}</p>
-                    <p className="mt-1 text-[11px] font-medium text-amber-600">
-                      Donor selanjutnya {getRecoveryEndDate(h.donation_date)}
-                    </p>
-                  </div>
-                  <StatusBadge status={h.verification_status} dot />
-                </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{formatDate(h.donation_date)}</p>
+                        <p className="text-xs text-muted-foreground">{h.institution}{h.location ? ` • ${h.location}` : ""}</p>
+                        <p className="mt-0.5 text-xs text-[#94a3b8]">{h.bags} kantong{h.notes ? ` • ${h.notes}` : ""}</p>
+                        <p className="mt-1 text-[11px] font-medium text-amber-600">
+                          Donor selanjutnya {getRecoveryEndDate(h.donation_date)}
+                        </p>
+                        {h.verification_level && h.verification_level !== "self" && (
+                          <span className="mt-1 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                            Verifikasi: {h.verification_level}
+                            {h.verification_source && ` • ${h.verification_source}`}
+                          </span>
+                        )}
+                      </div>
+                      <StatusBadge status={h.verification_status} dot />
+                    </div>
                 {h.proof_photo && (
                   <div className="mt-2">
                     <img

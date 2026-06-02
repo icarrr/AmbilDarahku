@@ -3,80 +3,77 @@
 ## Common Issues
 
 ### Backend won't start
-
 ```
 failed to connect to postgres: dial tcp 127.0.0.1:5432: connect: connection refused
 ```
-
 - Ensure PostgreSQL is running: `docker compose up -d postgres`
 - Check `.env` DB_HOST — Docker Compose uses `postgres`, local dev uses `localhost`
-- If using Docker Compose, run all services: `docker compose up --build`
 
 ### Migrations fail
-
-```
-failed to run migrations: ERROR: type "public.uuid-ossp" does not exist
-```
-
-- Ensure `uuid-ossp` extension is available. The migration runs `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` which should work on PostgreSQL 16.
+- Ensure `uuid-ossp` extension is available in PostgreSQL
+- Run `docker compose down -v && docker compose up -d postgres` to reset
 
 ### "invalid or expired token"
+- Access token TTL is 15 min (configurable); API client auto-refreshes
+- Verify system clock is synchronized (JWT uses timestamps)
 
-- Access token expired (default 15 min TTL)
-- API client auto-refreshes; if refresh also fails, user is redirected to login
-- Check system clock is synchronized (JWT validation uses timestamps)
+### Login "Failed to fetch"
+- Previously caused by seed blocking HTTP server — fixed by background goroutine
+- If persists, check backend is healthy: `curl http://localhost:8080/api/v1/health`
 
 ### "email already registered" / "phone already registered"
-
-- These are uniqueness checks. Both email and phone must be unique in the `users` table.
+- Uniqueness checks on `users.email` and `users.phone`
 
 ### Frontend shows blank page
-
 - Check browser console for errors
-- Verify `NEXT_PUBLIC_API_URL` in `frontend/.env.local` is correct (default: `/api/v1`)
-- If using Docker Compose, ensure backend is healthy
-- Next.js 16 is very new — check `node_modules/next/dist/docs/` for breaking changes
+- Verify `NEXT_PUBLIC_API_URL` in `frontend/.env.local` (default: `/api/v1`)
+- If Docker, ensure backend is healthy
 
 ### "admin access required"
+- Only `role = 'super_admin'` can access admin endpoints
+- Seed a super admin: set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in `.env`
 
-- Only users with `role = 'super_admin'` can access admin endpoints
-- Seed a super admin by setting `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in `.env`
+### Profile doesn't show updated data
+- Profile page now fetches from `/auth/me` API instead of stale AuthContext
+- If still stale, restart frontend or clear localStorage
 
-### Login succeeds but profile doesn't load
+### Email verification doesn't update profile
+- Fixed: `verify-email/page.tsx` now calls `await refreshUser()` after storing new JWT tokens
+- Previously only stored new tokens but AuthContext still showed `email_verified: false`
 
-- Check that `access_token` is stored in `localStorage`
-- The `AuthProvider` calls `/auth/me` on mount; if it fails, tokens are cleared
+### "Saya Sudah Donor" button disabled
+- Tooltip shows reason: incompatible blood type, not available, or not eligible
+- User must have compatible blood type and be eligible/available
+
+### Blood request shows "0 open" when data exists
+- Search endpoint moved to auth group — must be authenticated
+- Seed runs in background (~20 min); API returns empty until seed finishes
 
 ## Known Gaps
 
 | Issue | Impact | Status |
 |---|---|---|
-| Search results expose phone numbers | Privacy violation (PRD says phone not public) | Known gap |
-| Badge auto-awarding not wired | Badges exist in DB but never assigned | Missing feature |
-| File service `GetPublicURL` returns "TODO" | Uploaded files can't be retrieved | Incomplete |
-| Radius filter ignored by backend | UI sends radius, backend ignores it | Mismatch |
-| No auto-reactivation scheduler | `ready_again_date` is not checked by any cron job | Missing feature |
-| No tests | No automated test coverage | Missing |
+| No automated tests | Zero coverage | Known gap |
+| CORS allows all origins | Security risk in production | Known gap |
+| No rate limiting (except forgot-password) | Brute force vulnerability | Known gap |
+| No audit logging | No admin action trail | Known gap |
+| No production deployment | No cloud, HTTPS, domain | Known gap |
 
 ## Recovery Procedures
 
 ### Reset Database
-
 ```bash
 docker compose down -v   # WARNING: destroys all volumes
 docker compose up -d postgres
 ```
 
 ### Re-seed Admin
-
 1. Set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in `.env`
 2. Delete or update existing admin in DB
 3. Restart backend
 
-### Check Backend Logs
-
+### Rebuild Everything
 ```bash
-docker compose logs backend
-# or for local dev
-cd backend && go run ./cmd/server 2>&1
+docker compose down
+docker compose up --build
 ```

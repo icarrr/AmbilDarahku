@@ -1,384 +1,218 @@
-# API — AmbilDarahku
+# API — AmbilDarahku (v3.0)
 
 Base URL: `/api/v1`
 
 ## Common Response Structure
 
-**Success**:
-```json
-{ "user": { ... }, "badges": [...] }
-{ "requests": [...] }
-{ "donors": [...] }
-{ "leaderboard": [...] }
-{ "message": "..." }
-```
-
-**Error**:
-```json
-{ "error": "description of error" }
-```
-
-## Public Endpoints (no auth)
-
-### Health Check
-
-```
-GET /api/v1/health
-```
-
-Response: `{ "status": "ok" }`
-
-### Register
-
-```
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{
-  "full_name": "John Doe",
-  "phone": "6281234567890",
-  "email": "john@example.com",
-  "password": "password123",
-  "date_of_birth": "1995-06-15T00:00:00Z",
-  "gender": "male",
-  "blood_type": "O",
-  "rhesus": "+",
-  "weight_kg": 70,
-  "height_cm": 170,
-  "province": "Jawa Barat",
-  "city": "Bandung",
-  "district": "Sumur Bandung",
-  "latitude": -6.9147,
-  "longitude": 107.6098
-}
-```
-
-Response 201:
-```json
-{
-  "user": { "id": "uuid", "full_name": "John Doe", "role": "donor", ... },
-  "access_token": "eyJ...",
-  "refresh_token": "abc123..."
-}
-```
-
-- Unique email and phone required (409 on conflict)
-
-### Login
-
-```
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{ "email": "john@example.com", "password": "password123" }
-```
-
-Response 200: Same structure as register
-Response 401: `{ "error": "invalid email or password" }`
-
-### Refresh Token
-
-```
-POST /api/v1/auth/refresh
-Content-Type: application/json
-
-{ "refresh_token": "abc123..." }
-```
-
-Response 200: New `{ user, access_token, refresh_token }` (old token invalidated)
-
-### Public Portfolio
-
-```
-GET /api/v1/u/:username
-```
-
-Response 200:
-```json
-{
-  "full_name": "John Doe",
-  "blood_type": "O",
-  "rhesus": "+",
-  "city": "Bandung",
-  "total_donations": 12,
-  "badges": [
-    { "id": "uuid", "badge": { "name": "Hero", "description": "10 kali donor darah", "min_donations": 10 } }
-  ]
-}
-```
-
-Note: Phone number intentionally excluded from this endpoint.
-
-### List Open Blood Requests
-
-```
-GET /api/v1/requests?blood_type=O&rhesus=+
-```
-
-Query params (optional): `blood_type`, `rhesus`
-
-Response 200:
-```json
-{
-  "requests": [
-    {
-      "id": "uuid",
-      "patient_name": "Jane Doe",
-      "hospital": "RS Harapan Kita",
-      "blood_type": "O",
-      "rhesus": "+",
-      "bags": 2,
-      "urgency": "critical",
-      "latitude": -6.2,
-      "longitude": 106.8,
-      "city": "Jakarta",
-      "contact_phone": "6281234567890",
-      "notes": null,
-      "status": "open",
-      "created_at": "2025-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-Sorted by: critical → urgent → normal, then by recency.
-
-### Search Donors
-
-```
-GET /api/v1/donors?blood_type=A&rhesus=+&city=Jakarta
-```
-
-Query params (all optional): `blood_type`, `rhesus`, `city`, `availability_status` (default: "available")
-
-Response 200:
-```json
-{
-  "donors": [
-    {
-      "id": "uuid",
-      "full_name": "John Doe",
-      "phone": "6281234567890",
-      "email": "john@example.com",
-      "blood_type": "A",
-      "rhesus": "+",
-      "city": "Jakarta",
-      "province": "DKI Jakarta",
-      "latitude": -6.2,
-      "longitude": 106.8,
-      "total_donations": 10,
-      "availability_status": "available",
-      "eligibility_status": "eligible",
-      ...
-    }
-  ]
-}
-```
-
-Sorted by: `total_donations DESC`.
-
-### Leaderboard
-
-```
-GET /api/v1/leaderboard/national
-GET /api/v1/leaderboard/regional?city=Bandung
-```
-
-Regional requires `city` query param (400 otherwise).
-
-Response 200:
-```json
-{
-  "leaderboard": [
-    {
-      "id": "uuid",
-      "full_name": "John Doe",
-      "blood_type": "O",
-      "rhesus": "+",
-      "city": "Bandung",
-      "total_donations": 50,
-      "total_points": 5000,
-      "last_donation_date": "2025-01-01T00:00:00Z"
-    }
-  ]
-}
-```
-
-National: top 100; Regional: top 50. Ordered by `total_points DESC, total_donations DESC`.
+**Success**: `{ "user": {...}, "badges": [...], "requests": [...], "donors": [...], "leaderboard": [...], "message": "..." }`
+**Error**: `{ "error": "description" }`
 
 ---
 
-## Authenticated Endpoints
+## Public Endpoints (no auth)
 
-Requires header: `Authorization: Bearer <access_token>`
-
-### Get My Profile
-
+### Health
 ```
-GET /api/v1/auth/me
+GET /api/v1/health → { "status": "ok" }
 ```
 
-Response 200:
-```json
-{
-  "user": { ... },
-  "badges": [ ... ]
-}
+### Stats
+```
+GET /api/v1/stats → { "active_donors": N, "lives_saved": N, "partner_hospitals": 450, "cities_reached": N }
 ```
 
-### Update My Profile
+### Auth
+```
+POST /api/v1/auth/register
+{ "full_name", "phone", "email", "password", "date_of_birth", "gender", "blood_type", "weight_kg", "height_cm", "province", "city", "district" }
+→ 201 { "user": {...}, "access_token": "...", "refresh_token": "..." }
+```
+Note: Register no longer includes rhesus (defaults to "+"), latitude, or longitude.
 
 ```
-PUT /api/v1/auth/me
-Content-Type: application/json
+POST /api/v1/auth/login
+{ "email", "password" }
+→ 200 { "user": {...}, "access_token": "...", "refresh_token": "..." }
 
-{
-  "full_name": "John Updated",
-  "phone": "6281234567890",
-  "weight_kg": 72,
-  "username": "john_updated",
-  "avatar_url": "https://..."
-}
+POST /api/v1/auth/refresh
+{ "refresh_token": "..." }
+→ 200 { "user": {...}, "access_token": "...", "refresh_token": "..." } (old token rotated)
+
+POST /api/v1/auth/verify-email
+{ "token": "..." }
+→ 200 { "user": {...}, "access_token": "...", "refresh_token": "..." }
+
+POST /api/v1/auth/forgot-password
+{ "email": "..." } → 200 { "message": "..." } (1-min rate limit)
+
+POST /api/v1/auth/reset-password
+{ "token": "...", "new_password": "..." } → 200 { "message": "..." }
 ```
 
-All fields optional. Only provided fields are updated.
+### Public Profiles & Data
+```
+GET /api/v1/u/:username
+→ { "full_name", "blood_type", "city", "total_donations", "donation_volume_total", "verification_level", "national_donor_id", "badges": [...] }
 
-### Logout
+GET /api/v1/requests?blood_type=O&urgency=critical&limit=10
+→ { "requests": [{ patient_name, hospital, blood_type, urgency, city, contact_phone, ... }] }
+
+GET /api/v1/requests/:id → { "request": {...}, "fulfillments": [...] }
+
+GET /api/v1/requests/:id/fulfillments → { "fulfillments": [{ donor_name, bags, ... }] }
+
+GET /api/v1/leaderboard/national → { "leaderboard": [top 100] }
+GET /api/v1/leaderboard/regional?city=Bandung → { "leaderboard": [top 50] }
+
+GET /api/v1/events → { "events": [upcoming/ongoing] }
+
+GET /api/v1/passport/verify/:token → { "valid": true, "passport_number": "...", "full_name": "...", "blood_type": "..." }
+GET /api/v1/passport/:username → { "passport": {...}, "user": {...}, "badges": [...] }
+
+GET /api/v1/timeline/:username?limit=20&offset=0
+→ { "entries": [{ "type": "donation"|"badge", "title": "...", "description": "...", "date": "..." }] }
+
+GET /api/v1/recognition/:username
+→ { "user": {...}, "badges": [...], "titles": [...], "passport": {...} }
+
+GET /api/v1/trust-score/:username → { "trust_score": N, "breakdown": {...} }
+```
+
+### Donor Search
+```
+GET /api/v1/donors?blood_type=A&city=Jakarta&availability_status=available&compatible_with=O&lat=-6.2&lng=106.8&radius=10
+```
+**Auth required** (JWT). Returns donors with `button_state` (enabled/disabled) and `reason_if_disabled`.
+Sorted by distance (haversine). Query params all optional.
+
+---
+
+## Authenticated Endpoints (JWT required)
 
 ```
-POST /api/v1/auth/logout
+GET /api/v1/auth/me → { "user": {...}, "badges": [...] }
+PUT /api/v1/auth/me → { "user": {...} }  (partial update, all fields optional)
+POST /api/v1/auth/logout → { "message": "logged out successfully" }
+POST /api/v1/auth/resend-verification → { "message": "..." }
+PUT /api/v1/auth/change-password → { "message": "..." }
+  { "current_password", "new_password" }
 ```
 
-Response 200: `{ "message": "logged out successfully" }`
+---
 
-Invalidates all refresh tokens for the user.
+## Verified-Email Endpoints (JWT + email_verified)
 
 ### Donor History
-
 ```
-GET /api/v1/donor-history
-```
-
-Response 200: `{ "histories": [ { id, donation_date, location, institution, bags, verification_status, ... } ] }`
-
-Ordered by `donation_date DESC`.
-
-```
+GET /api/v1/donor-history → { "histories": [...] }
 POST /api/v1/donor-history
-Content-Type: application/json
-
-{
-  "donation_date": "2025-01-15",
-  "location": "PMI Bandung",
-  "institution": "PMI",
-  "bags": 1,
-  "notes": "Donor rutin",
-  "proof_photo": "https://...",
-  "proof_card": "https://...",
-  "proof_letter": "https://..."
-}
+  { "donation_date", "location", "institution", "bags", "notes", "proof_photo", "proof_card", "proof_letter" }
+PUT /api/v1/donor-history/:id → { "history": {...} } (updates proof_photo)
 ```
-
-`verification_status` defaults to "pending".
 
 ### Blood Requests
-
 ```
 POST /api/v1/requests
-Content-Type: application/json
+  { "patient_name", "hospital", "blood_type", "bags", "urgency", "city", "contact_phone", "notes" }
+  (rhesus defaults to "+")
 
-{
-  "patient_name": "Jane Doe",
-  "hospital": "RS Harapan Kita",
-  "blood_type": "O",
-  "rhesus": "+",
-  "bags": 2,
-  "urgency": "critical",
-  "latitude": -6.2,
-  "longitude": 106.8,
-  "city": "Jakarta",
-  "contact_phone": "6281234567890",
-  "notes": "Segera"
-}
+GET /api/v1/requests/mine → { "requests": [...] }
+PUT /api/v1/requests/:id/status → { "request": {...} }  ({ "status": "cancelled"|"fulfilled" })
+
+POST /api/v1/requests/:id/fulfill → { "success": true, "history": {...} }
+  (auto-creates verified donor history, duplicate-date guard)
 ```
-
-```
-GET /api/v1/requests/mine
-```
-
-Response: `{ "requests": [ ... ] }` — user's own requests, newest first.
-
-```
-PUT /api/v1/requests/:id/status
-Content-Type: application/json
-
-{ "status": "fulfilled" }
-```
-
-Valid statuses: `open`, `fulfilled`, `cancelled`.
 
 ### Donor Status
-
 ```
-GET /api/v1/donor-status
-```
-
-Response:
-```json
-{
-  "eligibility_status": "eligible",
-  "last_donation_date": "2024-10-01T00:00:00Z",
-  "search_priority": 1
-}
+GET /api/v1/donor-status → { "eligibility_status", "last_donation_date", "search_priority", "availability_mode/status", "reasons": [...] }
+PUT /api/v1/donor-status → { "donor_status": {...} }
+  { "availability_mode": "manual", "availability_status": "temporarily_unavailable", "ready_again_date", "unavailable_reason" }
 ```
 
+### Passport
 ```
-PUT /api/v1/donor-status
-Content-Type: application/json
-
-{
-  "availability_mode": "manual",
-  "availability_status": "temporarily_unavailable",
-  "ready_again_date": "2025-03-01",
-  "unavailable_reason": "Sakit"
-}
+GET /api/v1/passport → { "passport": {...}, "user": {...}, "badges": [...] }
+POST /api/v1/passport/request → { "passport": {...} } (creates passport, sets national_donor_id)
+POST /api/v1/passport/renew → { "passport": {...} } (updates last_renewed_at)
 ```
 
-## Admin Endpoints
-
-Requires `role = "super_admin"`.
-
+### Donation Claims
 ```
-GET /api/v1/admin/users
-```
-
-Response:
-```json
-{
-  "users": [
-    {
-      "id": "uuid",
-      "full_name": "John Doe",
-      "email": "john@example.com",
-      "phone": "6281234567890",
-      "role": "donor",
-      "blood_type": "O",
-      "rhesus": "+",
-      "city": "Bandung",
-      "total_donations": 10,
-      "eligibility_status": "eligible",
-      "availability_status": "available",
-      "created_at": "2025-01-01T00:00:00Z"
-    }
-  ]
-}
+GET /api/v1/claims → { "claims": [...] }
+GET /api/v1/claims/:id → { "claim": {...} }
+POST /api/v1/claims
+  { "donation_date", "location", "institution_name", "blood_type", "volume_ml", "proof_photo_url", "proof_document_url", "additional_notes" }
+PUT /api/v1/claims/:id (only pending) → { "claim": {...} }
+DELETE /api/v1/claims/:id (only pending) → { "message": "..." }
 ```
 
+### Donor Verification
 ```
-PUT /api/v1/admin/users/:id/role
-Content-Type: application/json
-
-{ "role": "community_admin" }
+GET /api/v1/donor-verification → { "current_level": N, "max_level": 3, "history": [...] }
+POST /api/v1/donor-verification → { "verification": {...} }
+  { "level": 2, "verifier_role": "community", "notes": "..." }
 ```
 
-Valid roles: `donor`, `super_admin`, `community_admin`, `pmi_admin`, `hospital_admin`.
+### Timeline
+```
+GET /api/v1/timeline?limit=20&offset=0 → { "entries": [...] }
+```
+
+### Recognition
+```
+GET /api/v1/recognition → { "user": {...}, "badges": [...], "titles": [...], "passport": {...} }
+```
+
+### Trust Score
+```
+GET /api/v1/trust-score → { "trust_score": N, "breakdown": {...} }
+POST /api/v1/trust-score/refresh → { "trust_score": N, "breakdown": {...} }
+```
+
+---
+
+## Admin Endpoints (super_admin)
+
+```
+GET /api/v1/admin/users → { "users": [...] }
+PUT /api/v1/admin/users/:id/role → { "user": {...} }  ({ "role": "donor"|"super_admin"|... })
+
+POST /api/v1/events → { "event": {...} }
+  { "title", "location", "city", "event_date", "start_time", "end_time", "description", "organizer", "contact_phone", "quota", "banner_url" }
+
+GET /api/v1/admin/awards → { "awards": [...] }
+POST /api/v1/admin/awards → { "award": {...} }
+  { "name", "description", "award_type": "title"|"badge"|"certificate", "criteria": {...}, "scope": "national"|"regional"|"city", "scope_value": "..." }
+PUT /api/v1/admin/awards/:id → { "award": {...} }
+DELETE /api/v1/admin/awards/:id → { "message": "..." }
+
+POST /api/v1/admin/titles → { "title": {...} }
+  { "user_id", "title": "...", "description": "..." }
+GET /api/v1/admin/titles → { "titles": [...] }
+```
+
+---
+
+## PMI Review Endpoints (super_admin OR pmi_admin)
+
+```
+GET /api/v1/admin/stats → { "pending_claims": N, "pending_verifications": N, "total_users": N, "total_donors": N, "total_donations": N }
+
+GET /api/v1/admin/claims → { "claims": [{ user details, claim details, ... }] }
+GET /api/v1/admin/claims/:id → { full claim with user info }
+
+PUT /api/v1/admin/claims/:id/review → { "claim": {...} }
+  { "status": "approved"|"rejected", "rejection_reason": "..." }
+
+GET /api/v1/admin/verifications → { "verifications": [{ user details, ... }] }
+PUT /api/v1/admin/verifications/:id/review → { "verification": {...} }
+  { "status": "approved"|"rejected", "notes": "..." }
+
+GET /api/v1/admin/analytics/institutions → { "institutions": [top 20] }
+GET /api/v1/admin/analytics/cities → { "cities": [top 20] }
+GET /api/v1/admin/analytics/years → { "years": [yearly counts] }
+GET /api/v1/admin/analytics/months → { "months": [last 12 months] }
+GET /api/v1/admin/analytics/age → { "buckets": [{ "range": "17-20", "count": N }, ...] }
+GET /api/v1/admin/analytics/top-donors → { "donors": [top 10] }
+```

@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   Droplets, Heart, Plus, Search, Calendar, Trophy, MessageCircle, Award, Bell,
-  History, CalendarDays, ChevronRight, ShieldAlert, Lock,
+  CalendarDays, ChevronRight, ShieldAlert, Shield, Medal, Lock,
 } from "lucide-react";
 
 type BadgeData = {
@@ -52,6 +52,8 @@ export default function ProfilePage() {
   const [badges, setBadges] = useState<BadgeData[]>([]);
   const [status, setStatus] = useState<DonorStatus | null>(null);
   const [urgentRequests, setUrgentRequests] = useState<UrgentRequest[]>([]);
+  const [stats, setStats] = useState({ total_donations: user?.total_donations || 0, total_points: user?.total_points || 0 });
+  const [trustScore, setTrustScore] = useState<number | null>(user?.trust_score ?? null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     full_name: "", phone: "", city: "", username: "",
@@ -61,7 +63,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    api.get<{ badges: BadgeData[] }>("/auth/me").then(d => setBadges(d.badges || [])).catch(() => {});
+    api.get<{ user: { total_donations: number; total_points: number; trust_score?: number }; badges: BadgeData[] }>("/auth/me")
+      .then(d => { setBadges(d.badges || []); setStats({ total_donations: d.user.total_donations || 0, total_points: d.user.total_points || 0 }); if (d.user.trust_score !== undefined) setTrustScore(d.user.trust_score); })
+      .catch(() => {});
     api.get<DonorStatus>("/donor-status").then(setStatus).catch(() => {});
     api.get<{ requests: UrgentRequest[] }>("/requests?urgency=critical,urgent&limit=5").then(d => setUrgentRequests(d.requests || [])).catch(() => {});
     setForm({
@@ -131,8 +135,9 @@ export default function ProfilePage() {
       setPwLoading(false);
     }
   };
-  const totalDonations = user.total_donations || 0;
-  const liters = (totalDonations * 0.35).toFixed(1);
+  const totalDonations = stats.total_donations;
+  const volumePerBag = user.weight_kg && user.weight_kg <= 55 ? 0.35 : 0.45;
+  const liters = (totalDonations * volumePerBag).toFixed(2);
   const topBadge = badges[0]?.badge?.name || "Pemula";
 
   return (
@@ -200,6 +205,48 @@ export default function ProfilePage() {
             </button>
           </GlassCard>
 
+          <Link href="/verification" className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 p-3 transition-colors hover:from-blue-100 hover:to-purple-100">
+            <Shield className="h-5 w-5 text-blue-600" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-foreground">
+                Verifikasi Level {user.verification_level || 0} / 3
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {!user.verification_level ? "Tingkatkan kepercayaan" :
+                 user.verification_level === 1 ? "Laporan Mandiri" :
+                 user.verification_level === 2 ? "Terverifikasi Komunitas" :
+                 "Terverifikasi PMI"}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
+          </Link>
+
+          <button
+            onClick={() => { api.post("/trust-score/refresh", {}).then((d: unknown) => {
+              const result = d as Record<string, unknown>;
+              const ts = result.trust_score as Record<string, unknown>;
+              if (ts?.overall !== undefined) setTrustScore(ts.overall as number);
+              toast.success("Skor kepercayaan diperbarui");
+            }).catch(() => toast.error("Gagal memperbarui skor")) }}
+            className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 p-3 transition-colors hover:from-green-100 hover:to-emerald-100 text-left w-full"
+          >
+            <Heart className="h-5 w-5 text-green-600" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-foreground">
+                Skor Kepercayaan: {trustScore !== null ? trustScore.toFixed(1) : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                Ketuk untuk memperbarui
+              </p>
+            </div>
+            <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center">
+              <div className={`h-2 w-2 rounded-full ${
+                trustScore !== null && trustScore >= 80 ? "bg-green-500" :
+                trustScore !== null && trustScore >= 60 ? "bg-amber-500" : "bg-gray-400"
+              }`} />
+            </div>
+          </button>
+
           <div className="grid grid-cols-3 gap-3">
             <GlassCard className="text-center">
               <Droplets className="mx-auto h-5 w-5 text-red-600" />
@@ -215,7 +262,7 @@ export default function ProfilePage() {
             </GlassCard>
             <GlassCard className="text-center">
               <Trophy className="mx-auto h-5 w-5 text-red-600" />
-              <p className="mt-1 font-heading text-lg font-bold text-foreground">{user.total_points || 0}</p>
+              <p className="mt-1 font-heading text-lg font-bold text-foreground">{stats.total_points}</p>
               <p className="text-[10px] text-muted-foreground">Poin</p>
               <p className="text-[10px] text-[#94a3b8]">{badges.length} lencana diraih</p>
             </GlassCard>
@@ -258,21 +305,31 @@ export default function ProfilePage() {
             </GlassCard>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <Link href="/donor-history" className="flex items-center gap-3 rounded-xl bg-white/50 p-3 transition-colors hover:bg-white/80">
-              <Plus className="h-5 w-5 text-red-600" />
-              <span className="flex-1 text-xs font-medium text-foreground">Tambah Riwayat</span>
-              <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
+          <div className="flex flex-wrap gap-2">
+            <Link href="/donor-history" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[100px]">
+              <Plus className="h-4 w-4 text-red-600 shrink-0" />
+              <span className="text-xs font-medium text-foreground">Riwayat</span>
+              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
             </Link>
-            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-white/50 p-3 transition-colors hover:bg-white/80">
-              <Search className="h-5 w-5 text-red-600" />
-              <span className="flex-1 text-xs font-medium text-foreground">Cari Donor</span>
-              <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
+            <Link href="/search" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
+              <Search className="h-4 w-4 text-red-600 shrink-0" />
+              <span className="text-xs font-medium text-foreground">Cari</span>
+              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
             </Link>
-            <Link href="/events" className="flex items-center gap-3 rounded-xl bg-white/50 p-3 transition-colors hover:bg-white/80">
-              <CalendarDays className="h-5 w-5 text-red-600" />
-              <span className="flex-1 text-xs font-medium text-foreground">Event Donor</span>
-              <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
+            <Link href="/events" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
+              <CalendarDays className="h-4 w-4 text-red-600 shrink-0" />
+              <span className="text-xs font-medium text-foreground">Event</span>
+              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+            </Link>
+            <Link href="/passport" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
+              <Award className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="text-xs font-medium text-foreground">Paspor</span>
+              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+            </Link>
+            <Link href="/recognition" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[90px]">
+              <Medal className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="text-xs font-medium text-foreground">Rekognisi</span>
+              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
             </Link>
           </div>
         </div>

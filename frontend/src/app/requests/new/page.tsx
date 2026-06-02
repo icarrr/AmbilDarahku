@@ -22,10 +22,14 @@ import { cn } from "@/lib/utils";
 const BLOOD_OPTIONS = ["A", "B", "AB", "O"];
 
 function NewRequestForm() {
-  const { user } = useAuth();
+  const { user, isUnverified } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isUnverified) router.replace("/verify-email");
+  }, [isUnverified, router]);
   const [form, setForm] = useState({
     patient_name: "",
     blood_type: "",

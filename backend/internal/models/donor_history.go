@@ -16,5 +16,8 @@ type DonorHistory struct {
 	VerificationStatus string     `db:"verification_status" json:"verification_status"`
 	VerifiedBy         *string    `db:"verified_by" json:"verified_by,omitempty"`
 	VerifiedAt         *time.Time `db:"verified_at" json:"verified_at,omitempty"`
+	ClaimID            *string    `db:"claim_id" json:"claim_id,omitempty"`
+	VerificationLevel  *string    `db:"verification_level" json:"verification_level,omitempty"`
+	VerificationSource *string    `db:"verification_source" json:"verification_source,omitempty"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 }

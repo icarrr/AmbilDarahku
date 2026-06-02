@@ -88,13 +88,23 @@ func Load() *Config {
 		SMTPPort:     getEnv("SMTP_PORT", "587"),
 		SMTPUser:     getEnv("SMTP_USER", ""),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
-		SMTPFrom:     getEnv("SMTP_FROM", "noreply@ambildarahku.id"),
+		SMTPFrom:     getEnvWithFallback("SMTP_FROM", "SMTP_SENDER", "noreply@ambildarahku.id"),
 		AppURL:       getEnv("APP_URL", "http://localhost:3000"),
 	}
 }
 
 func getEnv(key, fallback string) string {
 	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return fallback
+}
+
+func getEnvWithFallback(primary, secondary, fallback string) string {
+	if val := os.Getenv(primary); val != "" {
+		return val
+	}
+	if val := os.Getenv(secondary); val != "" {
 		return val
 	}
 	return fallback
