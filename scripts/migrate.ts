@@ -188,6 +188,52 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_type VARCHAR(50);
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_id VARCHAR(255);
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_type VARCHAR(50);
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_id VARCHAR(255);
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false;
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS raw_data JSONB;
+CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_dedup ON events(source_type, source_id) WHERE source_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS event_organizers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  website_url TEXT,
+  contact_phone VARCHAR(20),
+  city VARCHAR(100),
+  province VARCHAR(100),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  trust_score INT NOT NULL DEFAULT 50,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS event_sources (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  source_type VARCHAR(50) NOT NULL,
+  source_name VARCHAR(255) NOT NULL,
+  source_url TEXT NOT NULL,
+  scraper_config JSONB NOT NULL DEFAULT '{}',
+  detection_keywords TEXT[],
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  last_scraped_at TIMESTAMPTZ,
+  last_error TEXT,
+  scrape_frequency_minutes INT NOT NULL DEFAULT 360,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_sources_type ON event_sources(source_type);
+CREATE INDEX IF NOT EXISTS idx_event_sources_active ON event_sources(is_active);
+
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS organizer_id UUID REFERENCES event_organizers(id);
+CREATE INDEX IF NOT EXISTS idx_events_organizer ON events(organizer_id);
 
 CREATE TABLE IF NOT EXISTS donor_passports (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

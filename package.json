@@ -10,14 +10,17 @@
     "migrate": "npx tsx scripts/migrate.ts",
     "reset": "npx tsx scripts/reset-db.ts",
     "seed": "npx tsx scripts/seed-dev.ts",
-    "seed:prod-like": "npx tsx scripts/seed-production-like.ts"
+    "seed:prod-like": "npx tsx scripts/seed-production-like.ts",
+    "discover": "npx tsx scripts/discover-events.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1064.0",
     "@base-ui/react": "^1.5.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.108.0",
+    "axios": "^1.17.0",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jsonwebtoken": "^9.0.3",
