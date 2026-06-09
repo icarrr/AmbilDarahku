@@ -46,39 +46,22 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  frontend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     env_file:
       - .env
+      - .env.local
     environment:
       DB_HOST: postgres
-      REDIS_HOST: redis
       S3_ENDPOINT: minio:9000
       S3_USE_SSL: "false"
     ports:
-      - "${SERVER_PORT}:8080"
+      - "${FRONTEND_PORT}:3000"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-      - ./frontend/.env.local
-    ports:
-      - "${FRONTEND_PORT}:3000"
-    depends_on:
-      - backend
     restart: unless-stopped
 
 volumes:
