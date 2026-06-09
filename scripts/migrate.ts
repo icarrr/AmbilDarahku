@@ -53,6 +53,8 @@ CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
 CREATE INDEX IF NOT EXISTS idx_users_eligibility ON users(eligibility_status);
 CREATE INDEX IF NOT EXISTS idx_users_availability ON users(availability_status);
 CREATE INDEX IF NOT EXISTS idx_users_coords ON users(latitude, longitude);
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS nik VARCHAR(16) UNIQUE;
 
 CREATE TABLE IF NOT EXISTS donor_histories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
