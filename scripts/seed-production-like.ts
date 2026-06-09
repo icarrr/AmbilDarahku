@@ -1,10 +1,8 @@
 import "dotenv/config";
 import { Pool } from "pg";
-import { faker, id_ID } from "@faker-js/faker";
+import { fakerID_ID as faker } from "@faker-js/faker";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-
-faker.locale = "id_ID";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || "",
