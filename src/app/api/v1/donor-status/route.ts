@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
-    eligibility_status: user.eligibility_status,
+    eligibility_status: status,
     last_donation_date: user.last_donation_date,
     search_priority: getSearchPriority(user.eligibility_status, user.availability_status, user.ready_again_date),
     availability_mode: user.availability_mode,

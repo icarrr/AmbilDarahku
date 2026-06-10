@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { getFileUrl } from "@/lib/file";
 
 interface AvatarWithBadgeProps {
   name: string;
@@ -33,7 +34,7 @@ export function AvatarWithBadge({ name, avatarUrl, size = "md", badge, className
     <div className={cn("relative inline-flex", className)}>
       {avatarUrl ? (
         <img
-          src={avatarUrl}
+          src={getFileUrl(avatarUrl) || ""}
           alt={name}
           className={cn("rounded-full object-cover", sizeClasses[size])}
         />

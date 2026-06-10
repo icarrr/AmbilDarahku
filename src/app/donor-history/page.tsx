@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText } from "lucide-react";
+import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText, Pencil } from "lucide-react";
+import { getFileUrl } from "@/lib/file";
 import { SkeletonCard } from "@/components/ui/skeleton";
 
 type History = {
@@ -37,6 +38,7 @@ export default function DonorHistoryPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [editingHistory, setEditingHistory] = useState<History | null>(null);
 
   useEffect(() => {
     api.get<{ histories: History[] }>("/donor-history").then(d => setHistories(d.histories || [])).catch(() => {}).finally(() => setLoading(false));
@@ -49,25 +51,52 @@ export default function DonorHistoryPage() {
     setPhotoPreview(URL.createObjectURL(file));
   };
 
+  const resetForm = () => {
+    setForm({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview("");
+    setPhotoFile(null);
+    setEditingHistory(null);
+    setShowForm(false);
+  };
+
+  const openEditForm = (h: History) => {
+    setEditingHistory(h);
+    setForm({
+      donation_date: h.donation_date.split("T")[0],
+      location: h.location,
+      institution: h.institution,
+      bags: String(h.bags),
+      notes: h.notes || "",
+      proof_photo: h.proof_photo || "",
+    });
+    setPhotoFile(null);
+    setPhotoPreview("");
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const addHistory = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploading(true);
     try {
-      let photoUrl = "";
+      let photoUrl = form.proof_photo || "";
       if (photoFile) {
         photoUrl = await api.upload("/upload", photoFile);
       }
-      await api.post("/donor-history", { ...form, proof_photo: photoUrl, bags: parseInt(form.bags) });
-      toast.success("Riwayat donor ditambahkan");
-      setShowForm(false);
-      setForm({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
-      setPhotoPreview("");
-      setPhotoFile(null);
+      const payload = { ...form, proof_photo: photoUrl, bags: parseInt(form.bags) };
+      if (editingHistory) {
+        await api.put(`/donor-history/${editingHistory.id}`, payload);
+        toast.success("Riwayat donor diperbarui");
+      } else {
+        await api.post("/donor-history", payload);
+        toast.success("Riwayat donor ditambahkan");
+      }
+      resetForm();
       const d = await api.get<{ histories: History[] }>("/donor-history");
       setHistories(d.histories || []);
     } catch {
-      toast.error("Gagal menambah riwayat");
+      toast.error(editingHistory ? "Gagal memperbarui riwayat" : "Gagal menambah riwayat");
     } finally {
       setUploading(false);
     }
@@ -104,7 +133,14 @@ export default function DonorHistoryPage() {
 
       {showForm && (
         <GlassCard className="mb-6">
-          <h3 className="mb-4 font-heading text-base font-semibold text-foreground">Tambah Riwayat Donor</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-heading text-base font-semibold text-foreground">
+              {editingHistory ? "Edit Riwayat Donor" : "Tambah Riwayat Donor"}
+            </h3>
+            {editingHistory && (
+              <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs">Batal</Button>
+            )}
+          </div>
           <form onSubmit={addHistory} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -155,6 +191,20 @@ onChange={handlePhoto}
                     Siap
                   </div>
                 </div>
+              ) : form.proof_photo && !photoFile ? (
+                <div className="relative">
+                  <img src={getFileUrl(form.proof_photo) || ""} alt="Current photo" className="h-40 w-full rounded-lg object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, proof_photo: "" }))}
+                    className="absolute right-2 top-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-white">
+                    Foto saat ini
+                  </div>
+                </div>
               ) : (
                 <button
                   type="button"
@@ -162,7 +212,7 @@ onChange={handlePhoto}
                   className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-6 text-sm text-muted-foreground transition-colors hover:border-red-300 hover:bg-red-50"
                 >
                   <Camera className="h-8 w-8 text-gray-300" />
-                  <span>Ambil foto atau pilih dari galeri</span>
+                  <span>{editingHistory ? "Ganti foto bukti donor" : "Ambil foto atau pilih dari galeri"}</span>
                   <span className="text-xs text-[#94a3b8]">Foto selfie saat donor sebagai bukti verifikasi</span>
                 </button>
               )}
@@ -171,7 +221,7 @@ onChange={handlePhoto}
                 Tanpa foto, riwayat tidak akan terverifikasi
               </p>
             </div>
-            <Button type="submit" disabled={uploading}>{uploading ? "Mengunggah..." : "Simpan Riwayat"}</Button>
+            <Button type="submit" disabled={uploading}>{uploading ? "Mengunggah..." : editingHistory ? "Simpan Perubahan" : "Simpan Riwayat"}</Button>
           </form>
         </GlassCard>
       )}
@@ -217,18 +267,28 @@ onChange={handlePhoto}
                           </span>
                         )}
                       </div>
-                      <StatusBadge status={h.verification_status} dot />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(h)}
+                          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                          title="Edit"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <StatusBadge status={h.verification_status} dot />
+                      </div>
                     </div>
                 {h.proof_photo && (
                   <div className="mt-2">
                     <img
-                      src={h.proof_photo}
+                      src={getFileUrl(h.proof_photo) || ""}
                       alt="Bukti donor"
                       className="h-24 w-32 rounded-lg object-cover border border-gray-200"
                     />
                   </div>
                 )}
-                {h.verification_status === "pending" && (
+                {h.verification_status === "pending" && !h.proof_photo && (
                   <div className="mt-1.5">
                     <p className="text-xs text-amber-600">
                       <Camera className="mr-1 inline h-3 w-3" />

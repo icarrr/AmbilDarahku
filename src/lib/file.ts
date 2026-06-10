@@ -11,7 +11,7 @@ export async function uploadFile(
 
   const blob = await put(pathname, buffer, {
     contentType,
-    access: "public",
+    access: "private",
   });
 
   return blob.url;
@@ -21,6 +21,7 @@ export async function deleteFile(url: string): Promise<void> {
   await del(url);
 }
 
-export function getPublicURL(objectName: string): string {
-  return `https://ambildarahku.vercel.blob.core.windows.net/${objectName}`;
+export function getFileUrl(blobUrl: string | null | undefined): string | null {
+  if (!blobUrl) return null;
+  return `/api/v1/files?url=${encodeURIComponent(blobUrl)}`;
 }

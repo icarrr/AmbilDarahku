@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         location: reqData.city,
         institution: reqData.hospital,
         bags,
-        verification_status: "verified",
+        verification_status: "pending",
       })
       .select("*");
 

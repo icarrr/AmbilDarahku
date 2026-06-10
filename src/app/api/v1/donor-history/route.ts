@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "donation record already exists for this date" }, { status: 409 });
     }
 
+    const hasPhoto = !!proof_photo;
+
     const { data: result, error: insError } = await supabase
       .from("donor_histories")
       .insert({
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
         proof_photo: proof_photo || null,
         proof_card: proof_card || null,
         proof_letter: proof_letter || null,
+        verification_status: hasPhoto ? "verified" : "pending",
+        verification_level: hasPhoto ? "self" : "self",
       })
       .select("*");
 

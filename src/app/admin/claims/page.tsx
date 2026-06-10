@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { getFileUrl } from "@/lib/file";
 
 type ClaimWithUser = {
   id: string;
@@ -143,13 +144,13 @@ export default function AdminClaimsPage() {
                 {(c.proof_photo_url || c.proof_document_url || c.additional_notes) && (
                   <div className="mt-3 pt-3 border-t space-y-2 text-sm">
                     {c.proof_photo_url && (
-                      <a href={c.proof_photo_url} target="_blank" rel="noopener noreferrer"
+                      <a href={getFileUrl(c.proof_photo_url) || ""} target="_blank" rel="noopener noreferrer"
                          className="text-blue-600 hover:underline block truncate">
                         📷 Bukti Foto
                       </a>
                     )}
                     {c.proof_document_url && (
-                      <a href={c.proof_document_url} target="_blank" rel="noopener noreferrer"
+                      <a href={getFileUrl(c.proof_document_url) || ""} target="_blank" rel="noopener noreferrer"
                          className="text-blue-600 hover:underline block truncate">
                         📄 Bukti Dokumen
                       </a>
