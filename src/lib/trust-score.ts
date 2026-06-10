@@ -22,7 +22,7 @@ export function calculateTrustScore(input: TrustInput): TrustBreakdown {
   const claimScore = input.totalClaims > 0
     ? (input.approvedClaims / input.totalClaims) * 100
     : 100;
-  const profileScore = (input.profileFields / 5) * 100;
+  const profileScore = Math.min((input.profileFields / 11) * 100, 100);
   const ageScore = Math.min((input.accountAgeDays / 730) * 100, 100);
 
   const overall =

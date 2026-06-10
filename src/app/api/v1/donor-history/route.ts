@@ -67,29 +67,26 @@ export async function POST(request: NextRequest) {
 
     if (insError) throw insError;
 
-    const { error: ue } = await supabase.rpc("refresh_donor_stats", { p_user_id: auth.userId });
-    if (ue) {
-      const { data: agg } = await supabase.from("donor_histories").select("bags").eq("user_id", auth.userId);
-      const totalBags = (agg || []).reduce((s: number, r: any) => s + (r.bags || 0), 0);
-      const { data: lastDate } = await supabase
-        .from("donor_histories")
-        .select("donation_date")
-        .eq("user_id", auth.userId)
-        .order("donation_date", { ascending: false })
-        .limit(1);
+    const { data: agg } = await supabase.from("donor_histories").select("bags").eq("user_id", auth.userId);
+    const totalBags = (agg || []).reduce((s: number, r: any) => s + (r.bags || 0), 0);
+    const { data: lastDate } = await supabase
+      .from("donor_histories")
+      .select("donation_date")
+      .eq("user_id", auth.userId)
+      .order("donation_date", { ascending: false })
+      .limit(1);
 
-      const lastDonation = lastDate?.[0]?.donation_date || null;
-      const daysSince = lastDonation ? (Date.now() - new Date(lastDonation).getTime()) / 86400000 : 999;
-      const { error: ue2 } = await supabase.from("users").update({
-        total_donations: totalBags,
-        total_points: totalBags * 10,
-        donation_volume_total: totalBags * 0.45,
-        last_donation_date: lastDonation,
-        eligibility_status: daysSince >= 56 ? "eligible" : "waiting_period",
-        updated_at: new Date().toISOString(),
-      }).eq("id", auth.userId);
-      if (ue2) throw ue2;
-    }
+    const lastDonation = lastDate?.[0]?.donation_date || null;
+    const daysSince = lastDonation ? (Date.now() - new Date(lastDonation).getTime()) / 86400000 : 999;
+    const { error: ue2 } = await supabase.from("users").update({
+      total_donations: totalBags,
+      total_points: totalBags * 10,
+      donation_volume_total: totalBags * 0.45,
+      last_donation_date: lastDonation,
+      eligibility_status: daysSince >= 56 ? "eligible" : "waiting_period",
+      updated_at: new Date().toISOString(),
+    }).eq("id", auth.userId);
+    if (ue2) throw ue2;
 
     const { data: badges } = await supabase.from("badges").select("*").order("min_donations");
     const { data: donor } = await supabase.from("users").select("total_donations").eq("id", auth.userId).maybeSingle();

@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   BadgeCheck, ShieldCheck, Award, Droplets, Heart, Calendar,
-  Download, RotateCcw, QrCode, Printer, MapPin,
+  RotateCcw, QrCode, Printer, MapPin, Medal, Star,
 } from "lucide-react";
+import { getAppUrl } from "@/lib/url";
 
 type PassportData = {
   id: string;
@@ -24,13 +25,40 @@ type PassportData = {
 
 type BadgeData = {
   id: string;
-  badge: { name: string; description: string; min_donations: number };
+  badge: { name: string; description: string; min_donations: number; icon_url?: string };
+};
+
+type TitleData = {
+  id: string;
+  title: string;
+  awarded_at: string;
+  description?: string;
+};
+
+type UserData = {
+  full_name: string;
+  blood_type: string;
+  city: string;
+  province: string;
+  total_donations: number;
+  verification_level: number;
+  weight_kg: number;
+  last_donation_date?: string;
+};
+
+const VERIF_DESCRIPTION: Record<number, string> = {
+  0: "Belum terverifikasi",
+  1: "Laporan mandiri — riwayat donor dicatat sendiri",
+  2: "Terverifikasi komunitas — dikonfirmasi oleh sesama donor",
+  3: "Terverifikasi PMI — diverifikasi oleh petugas PMI/rumah sakit",
 };
 
 export default function PassportPage() {
   const { user } = useAuth();
   const [passport, setPassport] = useState<PassportData | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [badges, setBadges] = useState<BadgeData[]>([]);
+  const [titles, setTitles] = useState<TitleData[]>([]);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -38,9 +66,11 @@ export default function PassportPage() {
   const fetchPassport = async () => {
     setLoading(true);
     try {
-      const data = await api.get<{ passport: PassportData; user: unknown; badges: BadgeData[] }>("/passport");
+      const data = await api.get<{ passport: PassportData; user: UserData; badges: BadgeData[]; titles: TitleData[] }>("/passport");
       setPassport(data.passport);
+      setUserData(data.user);
       setBadges(data.badges || []);
+      setTitles(data.titles || []);
     } catch {
       setPassport(null);
     } finally {
@@ -111,15 +141,15 @@ export default function PassportPage() {
     );
   }
 
-  const volumePerBag = user?.weight_kg && user.weight_kg <= 55 ? 0.35 : 0.45;
-  const liters = ((user?.total_donations || 0) * volumePerBag).toFixed(2);
-  const livesSaved = (user?.total_donations || 0) * 3;
+  const display = userData || user;
+  const liters = ((display?.total_donations || 0) * 0.45).toFixed(2);
+  const livesSaved = (display?.total_donations || 0) * 3;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 print:px-0 print:py-0">
       <div className="mb-4 flex items-center justify-between print:hidden">
         <h1 className="font-heading text-xl font-bold text-foreground">
-          Paspor Donor
+          Paspor Donor Darah
         </h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={renewPassport}>
@@ -134,136 +164,118 @@ export default function PassportPage() {
       </div>
 
       <div ref={printRef} className="space-y-4">
-        <GlassCard className="relative overflow-hidden border-2 border-red-100 p-6">
-          <div className="absolute right-0 top-0 h-24 w-24 opacity-5">
-            <Heart className="h-full w-full text-red-600" />
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-red-700 to-red-900 p-6 text-white">
+          <div className="absolute right-0 top-0 h-32 w-32 opacity-10">
+            <Heart className="h-full w-full" />
           </div>
-
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-red-600">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-red-200">
                 Paspor Donor Darah Nasional
               </p>
-              <p className="mt-1 text-lg font-bold text-foreground">
-                {user?.full_name}
-              </p>
-            </div>
-            <BloodTypeBadge type={user?.blood_type || "O"} size="lg" />
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#94a3b8]">
-                Nomor Identitas Donor
-              </p>
-              <p className="font-mono text-sm font-bold text-foreground">
-                {passport.passport_number}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#94a3b8]">
-                Status
-              </p>
-              <p className={`text-sm font-bold ${passport.is_active ? "text-emerald-600" : "text-red-600"}`}>
-                {passport.is_active ? "Aktif" : "Tidak Aktif"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#94a3b8]">
-                Diterbitkan
-              </p>
-              <p className="text-sm font-medium text-foreground">
-                {formatDate(passport.issued_at)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#94a3b8]">
-                Terakhir Diperbarui
-              </p>
-              <p className="text-sm font-medium text-foreground">
-                {passport.last_renewed_at ? formatDate(passport.last_renewed_at) : "—"}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-gray-100 pt-4">
-            <div className="flex items-start gap-4">
-              <div className="shrink-0 text-center">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`${window.location.origin}/passport/verify/${passport.qr_token}`)}`}
-                  alt="QR Code Paspor"
-                  className="mx-auto h-24 w-24 rounded-lg border border-gray-200"
-                />
-                <p className="mt-1 text-[9px] text-[#94a3b8]">Scan untuk verifikasi</p>
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 text-[#94a3b8]" />
-                  <span className="text-xs text-muted-foreground">
-                    {user?.city}, {user?.province}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 text-[#94a3b8]" />
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(user?.last_donation_date || "") || "Belum donor"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                  <span className="text-xs text-emerald-600">
-                    Terverifikasi via AmbilDarahku
-                  </span>
-                </div>
+              <h2 className="mt-1 font-heading text-2xl font-bold">{display?.full_name}</h2>
+              <div className="mt-2 flex items-center gap-2">
+                <BloodTypeBadge type={display?.blood_type || "O"} size="sm" />
+                <span className="text-xs text-red-200">
+                  <MapPin className="mr-1 inline h-3 w-3" />
+                  {display?.city}
+                </span>
               </div>
             </div>
+            <div className="text-right">
+              <p className="text-[10px] text-red-200">ID Donor</p>
+              <p className="font-mono text-sm font-bold">{passport.passport_number}</p>
+            </div>
           </div>
-        </GlassCard>
-
-        <div className="grid grid-cols-3 gap-3">
-          <GlassCard className="py-3 text-center">
-            <Droplets className="mx-auto h-5 w-5 text-red-600" />
-            <p className="mt-1 font-heading text-lg font-bold text-foreground">
-              {user?.total_donations || 0}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Donasi</p>
-            <p className="text-[10px] text-[#94a3b8]">{liters} L</p>
-          </GlassCard>
-          <GlassCard className="py-3 text-center">
-            <Heart className="mx-auto h-5 w-5 text-emerald-500" />
-            <p className="mt-1 font-heading text-lg font-bold text-emerald-600">
-              {livesSaved}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Nyawa</p>
-            <p className="text-[10px] text-[#94a3b8]">Terselamatkan</p>
-          </GlassCard>
-          <GlassCard className="py-3 text-center">
-            <Award className="mx-auto h-5 w-5 text-amber-500" />
-            <p className="mt-1 font-heading text-lg font-bold text-foreground">
-              {badges.length}
-            </p>
-            <p className="text-[10px] text-muted-foreground">Lencana</p>
-            <p className="text-[10px] text-[#94a3b8]">Diraih</p>
-          </GlassCard>
         </div>
 
-        {badges.length > 0 && (
-          <GlassCard>
-            <h3 className="font-heading text-sm font-semibold text-foreground">
-              Lencana yang Diraih
-            </h3>
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {badges.slice(0, 8).map((b) => (
-                <div key={b.id} className="rounded-lg bg-red-50 p-2 text-center">
-                  <Award className="mx-auto h-5 w-5 text-red-600" />
-                  <p className="mt-1 text-[10px] font-medium text-foreground leading-tight">
-                    {b.badge.name}
-                  </p>
-                </div>
-              ))}
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-xl bg-gradient-to-b from-red-50 to-white p-3 text-center">
+            <Droplets className="mx-auto h-5 w-5 text-red-600" />
+            <p className="mt-1 font-heading text-xl font-bold text-foreground">{display?.total_donations || 0}</p>
+            <p className="text-[10px] text-[#94a3b8]">Donasi</p>
+          </div>
+          <div className="rounded-xl bg-gradient-to-b from-emerald-50 to-white p-3 text-center">
+            <Heart className="mx-auto h-5 w-5 text-emerald-500" />
+            <p className="mt-1 font-heading text-xl font-bold text-emerald-600">{livesSaved}</p>
+            <p className="text-[10px] text-[#94a3b8]">Nyawa</p>
+          </div>
+          <div className="rounded-xl bg-gradient-to-b from-amber-50 to-white p-3 text-center">
+            <Award className="mx-auto h-5 w-5 text-amber-500" />
+            <p className="mt-1 font-heading text-xl font-bold text-foreground">{liters}L</p>
+            <p className="text-[10px] text-[#94a3b8]">Volume</p>
+          </div>
+          <div className="rounded-xl bg-gradient-to-b from-blue-50 to-white p-3 text-center">
+            <ShieldCheck className="mx-auto h-5 w-5 text-blue-500" />
+            <p className="mt-1 font-heading text-xl font-bold text-foreground">{display?.verification_level ?? 0}/3</p>
+            <p className="text-[10px] text-[#94a3b8]">Verif</p>
+          </div>
+        </div>
+
+        {(display?.verification_level ?? 0) > 0 && (
+          <GlassCard className="px-4 py-3">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+              <div>
+                <p className="text-xs font-medium text-foreground">
+                  Level {display?.verification_level}: {VERIF_DESCRIPTION[display?.verification_level ?? 0]}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Verifikasi yang lebih tinggi meningkatkan skor kepercayaan.
+                </p>
+              </div>
             </div>
           </GlassCard>
         )}
+
+        {titles.length > 0 && (
+          <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 p-4 border border-amber-100">
+            <h3 className="flex items-center gap-2 font-heading text-sm font-bold text-amber-800">
+              <Medal className="h-4 w-4" />
+              Gelar Penghargaan
+            </h3>
+            <div className="mt-3 space-y-2">
+              {titles.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 rounded-xl bg-white/80 p-3">
+                  <Star className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{t.title}</p>
+                    {t.description && <p className="text-xs text-muted-foreground">{t.description}</p>}
+                    <p className="text-[10px] text-[#94a3b8]">{formatDate(t.awarded_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {badges.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-4">
+            <h3 className="font-heading text-sm font-bold text-foreground">Lencana yang Diraih</h3>
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {badges.slice(0, 8).map((b) => (
+                <div key={b.id} className="rounded-xl bg-red-50 p-2 text-center">
+                  <Award className="mx-auto h-5 w-5 text-red-600" />
+                  <p className="mt-1 text-[10px] font-medium text-foreground">{b.badge.name}</p>
+                  <p className="text-[9px] text-[#94a3b8]">{b.badge.min_donations} donor</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-2xl bg-white p-4 text-center border border-gray-100">
+          <p className="text-xs font-medium text-[#94a3b8]">QR Code Verifikasi</p>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${getAppUrl()}/passport/verify/${passport.qr_token}`)}`}
+            alt="QR"
+            className="mx-auto mt-2 h-28 w-28 rounded-lg border border-gray-200"
+          />
+          <p className="mt-2 font-mono text-[10px] text-[#94a3b8]">{passport.passport_number}</p>
+          <p className="text-[10px] text-[#94a3b8]">
+            Diterbitkan: {formatDate(passport.issued_at)}
+          </p>
+        </div>
 
         <GlassCard className="bg-gradient-to-br from-red-50 to-white">
           <p className="text-center text-[11px] text-muted-foreground">
@@ -273,7 +285,7 @@ export default function PassportPage() {
           </p>
           <div className="mt-2 flex items-center justify-center gap-1 text-[10px] text-[#94a3b8]">
             <QrCode className="h-3 w-3" />
-            <span>Verifikasi: {window.location.origin}/verify/{passport.qr_token.slice(0, 8)}...</span>
+            <span>Data diperbarui secara otomatis. Hasil cetak: {new Date().toLocaleDateString("id-ID")}</span>
           </div>
         </GlassCard>
       </div>

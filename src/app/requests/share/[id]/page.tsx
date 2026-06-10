@@ -6,11 +6,11 @@ import { useAuth } from "@/lib/auth-context";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { GlassCard } from "@/components/glass-card";
-import { Droplets, Hospital, User, ArrowLeft, CheckCircle, HeartHandshake, MessageCircle, AlertCircle } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getAppUrl } from "@/lib/url";
 import { toast } from "sonner";
 
 type BloodRequest = {
@@ -42,9 +42,8 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const [request, setRequest] = useState<BloodRequest | null>(null);
   const [fulfillments, setFulfillments] = useState<Fulfillment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [donorBags, setDonorBags] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [eligibilityStatus, setEligibilityStatus] = useState<string | null>(null);
 
   const fetchData = () => {
@@ -79,22 +78,11 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   }, [user]);
 
   const handleFulfill = async () => {
-    if (!user) {
-      toast.error("Silakan masuk terlebih dahulu");
-      router.push("/login");
-      return;
-    }
-    if (isUnverified) {
-      toast.error("Verifikasi email terlebih dahulu");
-      router.push("/verify-email");
-      return;
-    }
     setSubmitting(true);
     try {
-      await api.post(`/requests/${id}/fulfill`, { bags: donorBags });
+      await api.post(`/requests/${id}/fulfill`, { bags: 1 });
       toast.success("Donasi tercatat! Terima kasih.");
-      setShowForm(false);
-      setDonorBags(1);
+      setConfirmOpen(false);
       fetchData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal mencatat donasi");
@@ -132,7 +120,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const isCompatible = user ? compatibleForRequest.includes(baseType(userBloodDisplay)) : true;
   const isWaitingOrIneligible = !!user && eligibilityStatus != null && eligibilityStatus !== "eligible";
   const isButtonDisabled = !isCompatible || isWaitingOrIneligible || !user || isUnverified;
-  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
+  const pageUrl = getAppUrl() + window.location.pathname;
   const remaining = request.bags - (request.fulfilled_bags || 0);
   const progress = request.bags > 0 ? ((request.fulfilled_bags || 0) / request.bags) * 100 : 0;
   const isFulfilled = request.status === "fulfilled" || remaining <= 0;
@@ -258,101 +246,60 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
 
       {!isFulfilled && (
         <GlassCard className="mt-4 p-4">
-          {!showForm ? (
-            <div className="relative group">
-              <button
-                onClick={() => {
-                  if (!user) {
-                    toast.error("Silakan masuk terlebih dahulu");
-                    router.push("/login");
-                    return;
-                  }
-                  if (isUnverified) {
-                    toast.error("Verifikasi email terlebih dahulu");
-                    router.push("/verify-email");
-                    return;
-                  }
-                  if (isWaitingOrIneligible) return;
-                  if (!isCompatible) return;
-                  setShowForm(true);
-                }}
-                disabled={isButtonDisabled}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-colors ${
-                  isButtonDisabled
-                    ? "cursor-not-allowed bg-gray-200 text-gray-400"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                {isWaitingOrIneligible ? <AlertCircle className="h-4 w-4" /> : <HeartHandshake className="h-4 w-4" />}
-                {isWaitingOrIneligible ? "Dalam Masa Tunggu" : "Saya Sudah Donor"}
-              </button>
-              {isButtonDisabled && user && (
-                <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  {isUnverified
-                    ? "Verifikasi email terlebih dahulu"
-                    : !isCompatible
-                      ? `Golongan darah Anda (${userBloodDisplay}) tidak cocok untuk pasien (${bloodDisplay})`
-                      : eligibilityStatus === "waiting_period"
-                        ? "Anda masih dalam masa tunggu donor"
-                        : eligibilityStatus === "not_eligible"
-                          ? "Anda belum memenuhi syarat donor"
-                          : "Silakan masuk untuk donor"}
-                  <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Catat Donasi Anda</h4>
-              <p className="text-xs text-muted-foreground">
-                Berapa kantong darah yang Anda donasikan untuk pasien ini?
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDonorBags(Math.max(1, donorBags - 1))}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border text-sm font-bold hover:bg-gray-50"
-                >
-                  -
-                </button>
-                <Input
-                  type="number"
-                  min={1}
-                  value={donorBags}
-                  onChange={e => setDonorBags(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="h-8 w-16 text-center"
-                />
-                <button
-                  type="button"
-                  onClick={() => setDonorBags(donorBags + 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border text-sm font-bold hover:bg-gray-50"
-                >
-                  +
-                </button>
-                <span className="text-xs text-muted-foreground">kantong</span>
+          <div className="relative group">
+            <button
+              onClick={() => {
+                if (!user) {
+                  toast.error("Silakan masuk terlebih dahulu");
+                  router.push("/login");
+                  return;
+                }
+                if (isUnverified) {
+                  toast.error("Verifikasi email terlebih dahulu");
+                  router.push("/verify-email");
+                  return;
+                }
+                if (isWaitingOrIneligible) return;
+                if (!isCompatible) return;
+                setConfirmOpen(true);
+              }}
+              disabled={isButtonDisabled}
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-colors ${
+                isButtonDisabled
+                  ? "cursor-not-allowed bg-gray-200 text-gray-400"
+                  : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              {isWaitingOrIneligible ? <AlertCircle className="h-4 w-4" /> : <HeartHandshake className="h-4 w-4" />}
+              {isWaitingOrIneligible ? "Dalam Masa Tunggu" : "Saya Sudah Donor"}
+            </button>
+            {isButtonDisabled && user && (
+              <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {isUnverified
+                  ? "Verifikasi email terlebih dahulu"
+                  : !isCompatible
+                    ? `Golongan darah Anda (${userBloodDisplay}) tidak cocok untuk pasien (${bloodDisplay})`
+                    : eligibilityStatus === "waiting_period"
+                      ? "Anda masih dalam masa tunggu donor"
+                      : eligibilityStatus === "not_eligible"
+                        ? "Anda belum memenuhi syarat donor"
+                        : "Silakan masuk untuk donor"}
+                <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => { setShowForm(false); setDonorBags(1); }}
-                >
-                  Batal
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-red-600 hover:bg-red-700"
-                  disabled={submitting}
-                  onClick={handleFulfill}
-                >
-                  {submitting ? "Menyimpan..." : "Konfirmasi"}
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </GlassCard>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onConfirm={handleFulfill}
+        onCancel={() => setConfirmOpen(false)}
+        title="Konfirmasi Donasi"
+        description="Apakah Anda yakin sudah melakukan donor untuk pasien ini? Donasi akan dicatat ke dalam riwayat Anda."
+        confirmText="Ya, Saya Yakin"
+        loading={submitting}
+      />
 
       {fulfillments.length > 0 && (
         <GlassCard className="mt-4 p-4">

@@ -559,7 +559,7 @@ function generateUser(city: typeof ALL_CITIES[0], seq: number) {
   const rhesus = RHESUS[bloodType];
   const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${seq}@gmail.com`.replace(/[^a-z0-9.@]/g, "");
   const phone = `08${faker.string.numeric(10)}`;
-  const weightKg = faker.number.int({ min: 45, max: 95 });
+  const weightKg = faker.number.int({ min: 50, max: 95 });
   const heightCm = faker.number.int({ min: 148, max: 185 });
   const districts = getDistricts(city.n);
   const district = faker.helpers.arrayElement(districts);
@@ -577,7 +577,7 @@ function generateUser(city: typeof ALL_CITIES[0], seq: number) {
     { weight: 4, value: faker.number.int({ min: 51, max: 100 }) },
     { weight: 2, value: faker.number.int({ min: 101, max: 200 }) },
   ]);
-  const avgVol = weightKg <= 55 ? 0.35 : 0.45;
+  const avgVol = 0.45;
   const donationVolume = +(totalDonations * avgVol).toFixed(2);
   const points = totalDonations * 10;
   const eligibility = totalDonations >= 3 ? "eligible" : totalDonations > 0 ? "eligible" : "eligible";

@@ -16,18 +16,22 @@ export async function GET(request: NextRequest) {
 
   const { data: userBadges } = await supabase
     .from("user_badges")
-    .select("*, badges!inner(name, icon_url, description)")
+    .select("*, badges!inner(name, icon_url, description, min_donations)")
+    .eq("user_id", auth.userId)
+    .order("awarded_at", { ascending: false });
+
+  const { data: titles } = await supabase
+    .from("user_titles")
+    .select("*")
     .eq("user_id", auth.userId)
     .order("awarded_at", { ascending: false });
 
   const mapped = (userBadges || []).map((ub: any) => ({
     ...ub,
-    badge_name: ub.badges?.name,
-    badge_icon_url: ub.badges?.icon_url,
-    badge_description: ub.badges?.description,
+    badge: ub.badges,
     badges: undefined,
   }));
 
   const { password_hash, ...safe } = user!;
-  return NextResponse.json({ passport: passport || null, user: safe, badges: mapped });
+  return NextResponse.json({ passport: passport || null, user: safe, badges: mapped, titles: titles || [] });
 }

@@ -36,7 +36,7 @@ async function seedDev() {
     const username = d.email.split("@")[0];
     const lat = -6.2 + Math.random() * 0.4;
     const lng = 106.8 + Math.random() * 0.3;
-    const volumePerBag = d.weight_kg <= 55 ? 0.35 : 0.45;
+    const volumePerBag = 0.45;
     const totalVolume = +(d.total_donations * volumePerBag).toFixed(2);
     const points = d.total_donations * 10;
 

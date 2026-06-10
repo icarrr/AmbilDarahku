@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText, Pencil } from "lucide-react";
+import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText, Pencil, Trash2 } from "lucide-react";
 import { getFileUrl } from "@/lib/file";
 import { SkeletonCard } from "@/components/ui/skeleton";
 
@@ -30,7 +30,7 @@ export default function DonorHistoryPage() {
   const [histories, setHistories] = useState<History[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
+  const [form, setForm] = useState({ donation_date: "", location: "", institution: "", notes: "", proof_photo: "" });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -39,6 +39,7 @@ export default function DonorHistoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const [editingHistory, setEditingHistory] = useState<History | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<{ histories: History[] }>("/donor-history").then(d => setHistories(d.histories || [])).catch(() => {}).finally(() => setLoading(false));
@@ -52,7 +53,7 @@ export default function DonorHistoryPage() {
   };
 
   const resetForm = () => {
-    setForm({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
+    setForm({ donation_date: "", location: "", institution: "", notes: "", proof_photo: "" });
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoPreview("");
     setPhotoFile(null);
@@ -66,9 +67,8 @@ export default function DonorHistoryPage() {
       donation_date: h.donation_date.split("T")[0],
       location: h.location,
       institution: h.institution,
-      bags: String(h.bags),
       notes: h.notes || "",
-      proof_photo: h.proof_photo || "",
+      proof_photo: "",
     });
     setPhotoFile(null);
     setPhotoPreview("");
@@ -80,11 +80,13 @@ export default function DonorHistoryPage() {
     e.preventDefault();
     setUploading(true);
     try {
-      let photoUrl = form.proof_photo || "";
-      if (photoFile) {
-        photoUrl = await api.upload("/upload", photoFile);
+      const payload: Record<string, unknown> = { ...form, bags: 1 };
+      if (!editingHistory) {
+        payload.proof_photo = form.proof_photo || "";
       }
-      const payload = { ...form, proof_photo: photoUrl, bags: parseInt(form.bags) };
+      if (photoFile) {
+        payload.proof_photo = await api.upload("/upload", photoFile);
+      }
       if (editingHistory) {
         await api.put(`/donor-history/${editingHistory.id}`, payload);
         toast.success("Riwayat donor diperbarui");
@@ -99,6 +101,21 @@ export default function DonorHistoryPage() {
       toast.error(editingHistory ? "Gagal memperbarui riwayat" : "Gagal menambah riwayat");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDelete = async (h: History) => {
+    if (!confirm(`Hapus riwayat donor ${formatDate(h.donation_date)}?`)) return;
+    setDeletingId(h.id);
+    try {
+      await api.delete(`/donor-history/${h.id}`);
+      toast.success("Riwayat donor dihapus");
+      const d = await api.get<{ histories: History[] }>("/donor-history");
+      setHistories(d.histories || []);
+    } catch {
+      toast.error("Gagal menghapus riwayat");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -142,15 +159,9 @@ export default function DonorHistoryPage() {
             )}
           </div>
           <form onSubmit={addHistory} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Tanggal Donor</Label>
-                <Input type="date" value={form.donation_date} onChange={e => setForm(p => ({ ...p, donation_date: e.target.value }))} required />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Jumlah Kantong</Label>
-                <Input type="number" min="1" value={form.bags} onChange={e => setForm(p => ({ ...p, bags: e.target.value }))} />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Tanggal Donor</Label>
+              <Input type="date" value={form.donation_date} onChange={e => setForm(p => ({ ...p, donation_date: e.target.value }))} required />
             </div>
             <div className="space-y-1.5">
               <Label>Lokasi</Label>
@@ -164,6 +175,7 @@ export default function DonorHistoryPage() {
               <Label>Catatan (opsional)</Label>
               <Input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Misal: donor trombosit" />
             </div>
+            {!editingHistory && (
             <div className="space-y-1.5">
               <Label>
                 Foto Bukti Donor
@@ -191,20 +203,6 @@ onChange={handlePhoto}
                     Siap
                   </div>
                 </div>
-              ) : form.proof_photo && !photoFile ? (
-                <div className="relative">
-                  <img src={getFileUrl(form.proof_photo) || ""} alt="Current photo" className="h-40 w-full rounded-lg object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, proof_photo: "" }))}
-                    className="absolute right-2 top-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <div className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-white">
-                    Foto saat ini
-                  </div>
-                </div>
               ) : (
                 <button
                   type="button"
@@ -212,7 +210,7 @@ onChange={handlePhoto}
                   className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-6 text-sm text-muted-foreground transition-colors hover:border-red-300 hover:bg-red-50"
                 >
                   <Camera className="h-8 w-8 text-gray-300" />
-                  <span>{editingHistory ? "Ganti foto bukti donor" : "Ambil foto atau pilih dari galeri"}</span>
+                  <span>Ambil foto atau pilih dari galeri</span>
                   <span className="text-xs text-[#94a3b8]">Foto selfie saat donor sebagai bukti verifikasi</span>
                 </button>
               )}
@@ -221,6 +219,7 @@ onChange={handlePhoto}
                 Tanpa foto, riwayat tidak akan terverifikasi
               </p>
             </div>
+            )}
             <Button type="submit" disabled={uploading}>{uploading ? "Mengunggah..." : editingHistory ? "Simpan Perubahan" : "Simpan Riwayat"}</Button>
           </form>
         </GlassCard>
@@ -275,6 +274,15 @@ onChange={handlePhoto}
                           title="Edit"
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(h)}
+                          disabled={deletingId === h.id}
+                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          title="Hapus"
+                        >
+                          {deletingId === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                         <StatusBadge status={h.verification_status} dot />
                       </div>

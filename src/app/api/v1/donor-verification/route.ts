@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     current_level: level,
     max_level: 3,
-    history: history || [],
+    verifications: history || [],
   });
 }
 

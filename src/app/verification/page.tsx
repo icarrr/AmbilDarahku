@@ -32,7 +32,7 @@ export default function VerificationPage() {
   const [verifications, setVerifications] = useState<VerificationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ level: "2", verifier_role: "community", notes: "" });
+  const [form, setForm] = useState({ verifier_role: "community", notes: "" });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
@@ -50,16 +50,17 @@ export default function VerificationPage() {
   useEffect(() => { if (user) fetchData(); }, [user]);
 
   const submitVerification = async () => {
+    const targetLevel = currentLevel < 3 ? currentLevel + 1 : 3;
     setSubmitting(true);
     try {
       await api.post("/donor-verification", {
-        level: parseInt(form.level),
+        level: targetLevel,
         verifier_role: form.verifier_role,
         notes: form.notes || undefined,
       });
       toast.success("Permohonan verifikasi dikirim");
       setShowForm(false);
-      setForm({ level: "2", verifier_role: "community", notes: "" });
+      setForm({ verifier_role: "community", notes: "" });
       fetchData();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal mengirim");

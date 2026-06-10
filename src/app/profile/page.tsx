@@ -1,26 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api";
-import { formatDate, getRecoveryEndDate } from "@/lib/utils";
-import { GlassCard } from "@/components/glass-card";
-import { BloodTypeBadge } from "@/components/blood-type-badge";
-import { StatusBadge } from "@/components/status-badge";
-import { UrgencyBadge } from "@/components/urgency-badge";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
+import { BloodTypeBadge } from "@/components/blood-type-badge";
+import { GlassCard } from "@/components/glass-card";
 import { SectionTitle } from "@/components/section-title";
+import { StatusBadge } from "@/components/status-badge";
 import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
-import Link from "next/link";
+import { UrgencyBadge } from "@/components/urgency-badge";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { formatDate, getRecoveryEndDate } from "@/lib/utils";
 import {
-  Droplets, Heart, Plus, Search, Calendar, Trophy, MessageCircle, Award, Bell,
-  CalendarDays, Camera, ChevronRight, ShieldAlert, Shield, Medal, Lock,
+  Award, Bell,
+  CalendarDays, Camera, ChevronRight,
+  Droplets, Heart,
+  Lock,
+  MessageCircle,
+  Plus, Search,
+  Shield,
+  ShieldAlert,
+  Trophy
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type BadgeData = {
   id: string;
@@ -62,6 +69,10 @@ export default function ProfilePage() {
     province: "", district: "", blood_type: "", date_of_birth: "", gender: "",
     latitude: "", longitude: "", weight_kg: "", height_cm: "",
   });
+
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [pwForm, setPwForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
+  const [pwLoading, setPwLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -121,11 +132,6 @@ export default function ProfilePage() {
 
   if (!user) return <div className="mx-auto max-w-7xl px-5 py-6"><p className="text-muted-foreground">Memuat...</p></div>;
 
-  const [showChangePassword, setShowChangePassword] = useState(false);
-
-  const [pwForm, setPwForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
-  const [pwLoading, setPwLoading] = useState(false);
-
   const changePassword = async () => {
     if (pwForm.new_password.length < 6) { toast.error("Kata sandi minimal 6 karakter"); return; }
     if (pwForm.new_password !== pwForm.confirm_password) { toast.error("Kata sandi tidak cocok"); return; }
@@ -142,8 +148,7 @@ export default function ProfilePage() {
     }
   };
   const totalDonations = stats.total_donations;
-  const volumePerBag = user.weight_kg && user.weight_kg <= 55 ? 0.35 : 0.45;
-  const liters = (totalDonations * volumePerBag).toFixed(2);
+  const liters = (totalDonations * 0.45).toFixed(2);
   const topBadge = badges[0]?.badge?.name || "Pemula";
 
   return (
@@ -198,7 +203,7 @@ export default function ProfilePage() {
             </div>
             <button
               onClick={() => updateStatus(
-                status?.availability_mode || "automatic",
+                "manual",
                 status?.availability_status === "available" ? "temporarily_unavailable" : "available"
               )}
               className={`relative h-7 w-12 rounded-full transition-colors ${
@@ -330,11 +335,6 @@ export default function ProfilePage() {
             <Link href="/passport" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
               <Award className="h-4 w-4 text-amber-500 shrink-0" />
               <span className="text-xs font-medium text-foreground">Paspor</span>
-              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
-            </Link>
-            <Link href="/recognition" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[90px]">
-              <Medal className="h-4 w-4 text-amber-500 shrink-0" />
-              <span className="text-xs font-medium text-foreground">Rekognisi</span>
               <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
             </Link>
           </div>
@@ -483,14 +483,14 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Mode</span>
                   <div className="flex gap-2">
-                    <Select defaultValue={status?.availability_mode || "automatic"} onValueChange={v => updateStatus(v ?? "automatic", status?.availability_status || "available")}>
+                    <Select value={status?.availability_mode ?? "automatic"} onValueChange={v => updateStatus(v ?? "automatic", status?.availability_status || "available")}>
                       <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="automatic">Otomatis</SelectItem>
                         <SelectItem value="manual">Manual</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select defaultValue={status?.availability_status || "available"} onValueChange={v => updateStatus(status?.availability_mode || "manual", v ?? "available")}>
+                    <Select value={status?.availability_status ?? "available"} onValueChange={v => updateStatus(status?.availability_mode || "manual", v ?? "available")}>
                       <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="available">Siap Donor</SelectItem>
@@ -501,7 +501,6 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Link href="/donor-history"><Button variant="outline" size="sm">Riwayat</Button></Link>
                   {user.username && <Link href={`/u/${user.username}`}><Button variant="outline" size="sm">Profil Publik</Button></Link>}
                 </div>
               </div>

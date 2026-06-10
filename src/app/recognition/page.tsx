@@ -10,6 +10,7 @@ import {
   Printer, Award, Droplets, Heart, ShieldCheck, MapPin, Calendar,
   Medal, Star, CheckCircle, QrCode,
 } from "lucide-react";
+import { getAppUrl } from "@/lib/url";
 
 type BadgeData = {
   id: string;
@@ -71,8 +72,7 @@ export default function RecognitionPage() {
     return <div className="mx-auto max-w-lg px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
   }
 
-  const volumePerBag = userData.weight_kg && userData.weight_kg <= 55 ? 0.35 : 0.45;
-  const liters = ((userData.total_donations || 0) * volumePerBag).toFixed(2);
+  const liters = ((userData.total_donations || 0) * 0.45).toFixed(2);
   const livesSaved = (userData.total_donations || 0) * 3;
 
   return (
@@ -162,7 +162,7 @@ export default function RecognitionPage() {
         <div className="rounded-2xl border border-gray-100 bg-white p-4">
           <h3 className="font-heading text-sm font-bold text-foreground">Lencana yang Diraih</h3>
           <div className="mt-3 grid grid-cols-4 gap-2">
-            {badges.slice(0, 8).map((b) => (
+            {badges.filter(b => b.badge).slice(0, 8).map((b) => (
               <div key={b.id} className="rounded-xl bg-red-50 p-2 text-center">
                 <Award className="mx-auto h-5 w-5 text-red-600" />
                 <p className="mt-1 text-[10px] font-medium text-foreground">{b.badge.name}</p>
@@ -176,7 +176,7 @@ export default function RecognitionPage() {
           <div className="rounded-2xl bg-white p-4 text-center border border-gray-100">
             <p className="text-xs font-medium text-[#94a3b8]">QR Code Verifikasi</p>
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/passport/verify/${passport.qr_token}`)}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${getAppUrl()}/passport/verify/${passport.qr_token}`)}`}
               alt="QR"
               className="mx-auto mt-2 h-28 w-28 rounded-lg border border-gray-200"
             />

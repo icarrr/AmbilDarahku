@@ -65,7 +65,6 @@ export function BottomNav() {
             {secondaryItems.map(item => <NavLink key={item.href} {...item} isCompact />)}
             <NavLink href="/passport" icon={BadgeCheck} label="Paspor" isCompact />
             <NavLink href="/claims" icon={FileText} label="Klaim" isCompact />
-            <NavLink href="/recognition" icon={Medal} label="Rekognisi" isCompact />
             <NavLink href="/verification" icon={Shield} label="Verif" isCompact />
             <NavLink href="/timeline" icon={Timeline} label="Linimasa" isCompact />
             {isAdmin && <NavLink href="/admin" icon={Trophy} label="Admin" isCompact />}

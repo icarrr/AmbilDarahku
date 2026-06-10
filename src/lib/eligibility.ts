@@ -18,28 +18,18 @@ function ageRule(donor: DonorProfile): RuleResult {
   const birth = new Date(donor.dateOfBirth);
   const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 86400000));
 
-  if (donor.totalDonations === 0) {
-    if (age < 17) {
-      return { rule: "age", status: "not_eligible", reason: "Usia minimal 17 tahun untuk donor perdana", passed: false };
-    }
-    if (age > 60) {
-      return { rule: "age", status: "not_eligible", reason: "Usia maksimal 60 tahun untuk donor perdana", passed: false };
-    }
-    return { rule: "age", status: "eligible", reason: "", passed: true };
+  if (age < 18) {
+    return { rule: "age", status: "not_eligible", reason: "Usia minimal 18 tahun", passed: false };
   }
-
   if (age > 65) {
-    return { rule: "age", status: "not_eligible", reason: "Usia maksimal 65 tahun untuk donor ulang", passed: false };
-  }
-  if (age > 60) {
-    return { rule: "age", status: "needs_clearance", reason: "", passed: true };
+    return { rule: "age", status: "not_eligible", reason: "Usia maksimal 65 tahun", passed: false };
   }
   return { rule: "age", status: "eligible", reason: "", passed: true };
 }
 
 function weightRule(donor: DonorProfile): RuleResult {
-  if (donor.weightKg < 45) {
-    return { rule: "weight", status: "not_eligible", reason: "Berat badan minimal 45 kg", passed: false };
+  if (donor.weightKg < 50) {
+    return { rule: "weight", status: "not_eligible", reason: "Berat badan minimal 50 kg", passed: false };
   }
   return { rule: "weight", status: "eligible", reason: "", passed: true };
 }
@@ -83,7 +73,7 @@ export function evaluateEligibility(donor: DonorProfile): { status: EligibilityS
     results.push({
       rule: "medical_clearance",
       status: "needs_clearance",
-      reason: "Usia di atas 60 tahun memerlukan surat izin dokter untuk dapat mendonor",
+      reason: "Usia di atas 65 tahun memerlukan surat izin dokter untuk dapat mendonor",
       passed: true,
     });
   }
@@ -103,6 +93,6 @@ export function getSearchPriority(eligibilityStatus: string, availabilityStatus:
   return 4;
 }
 
-export function calculateDonationVolume(weightKg: number): number {
-  return weightKg <= 55 ? 0.35 : 0.45;
+export function calculateDonationVolume(_weightKg: number): number {
+  return 0.45;
 }

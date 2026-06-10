@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
 
   const { data: claimStats } = await supabase
     .from("donation_claims")
-    .select("status");
+    .select("status")
+    .eq("user_id", auth.userId);
 
   const total = claimStats?.length || 0;
   const approved = claimStats?.filter(c => c.status === "approved").length || 0;
@@ -30,8 +31,14 @@ export async function POST(request: NextRequest) {
   if (user.full_name) profileFields++;
   if (user.phone) profileFields++;
   if (user.city) profileFields++;
-  if (user.blood_type) profileFields++;
   if (user.province) profileFields++;
+  if (user.district) profileFields++;
+  if (user.blood_type) profileFields++;
+  if (user.gender) profileFields++;
+  if (user.date_of_birth) profileFields++;
+  if (user.weight_kg) profileFields++;
+  if (user.height_cm) profileFields++;
+  if (user.address) profileFields++;
 
   const breakdown = calculateTrustScore({
     totalDonations: user.total_donations || 0,

@@ -100,8 +100,7 @@ export default async function PublicPortfolioPage({
   const badges = profile.badges || [];
   const topBadge = badges[0]?.badge?.name || "Donor";
   const isAvailable = profile.availability_status === "available" && profile.eligibility_status === "eligible";
-  const volumePerBag = profile.weight_kg && profile.weight_kg <= 55 ? 0.35 : 0.45;
-  const liters = (profile.total_donations * volumePerBag).toFixed(2);
+  const liters = (profile.total_donations * 0.45).toFixed(2);
   const livesSaved = profile.total_donations * 3;
 
   return (
