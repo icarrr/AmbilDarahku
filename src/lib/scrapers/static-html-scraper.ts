@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import crypto from "crypto";
 import { ScrapedEvent } from "@/lib/event-discovery/types";
 import {
   getDetectionKeywords,
@@ -9,6 +10,10 @@ import {
   extractCity,
   isValidEvent,
 } from "@/lib/event-discovery/validator";
+
+function contentHash(data: string): string {
+  return crypto.createHash("md5").update(data).digest("hex").slice(0, 12);
+}
 
 const ALL_CITIES = [
   "Jakarta", "Bandung", "Surabaya", "Medan", "Makassar", "Denpasar",
@@ -101,8 +106,6 @@ export async function scrapeStaticHtml(
     const html = element.html() || "";
     const text = element.text();
 
-    if (!matchesKeywords(text, keywords)) return;
-
     const titleSel = config.titleSelector || "h1, h2, h3, h4, .title, .judul, a[href]";
     let title = "";
     const titleEl = element.find(titleSel).first();
@@ -131,6 +134,7 @@ export async function scrapeStaticHtml(
 
     if (!eventDate) return;
 
+    const srcId = href || contentHash(`${eventDate}|${time}|${title}|${location}`);
     const scraped: ScrapedEvent = {
       title: title.slice(0, 255),
       description: text.slice(0, 1000),
@@ -142,7 +146,7 @@ export async function scrapeStaticHtml(
       organizer,
       sourceUrl,
       sourceType: "static_html",
-      sourceId: href || undefined,
+      sourceId: srcId,
     };
 
     if (isValidEvent(scraped)) {
@@ -166,6 +170,7 @@ function tryParseFromBody($: cheerio.CheerioAPI, url: string, keywords: string[]
   const time = extractTime(text) || "08:00";
   const city = extractCity(text, ALL_CITIES) || "";
 
+  const srcId = contentHash(`${eventDate}|${time}|${title}|${city}`);
   return {
     title: title.slice(0, 255),
     description: text.slice(0, 1000),
@@ -177,5 +182,6 @@ function tryParseFromBody($: cheerio.CheerioAPI, url: string, keywords: string[]
     organizer: identifyOrganizer(text),
     sourceUrl: url,
     sourceType: "static_html",
+    sourceId: srcId,
   };
 }

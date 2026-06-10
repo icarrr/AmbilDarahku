@@ -75,6 +75,26 @@ async function attemptRefresh(): Promise<boolean> {
   }
 }
 
+async function uploadRequest(path: string, file: File): Promise<string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Upload failed" }));
+    throw new Error(err.error || `Upload failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.url;
+}
+
 export const api = {
   get: <T>(path: string, authenticated = true) =>
     request<T>(path, { authenticated }),
@@ -86,4 +106,5 @@ export const api = {
     request<T>(path, { method: "PATCH", body, authenticated }),
   delete: <T>(path: string, authenticated = true) =>
     request<T>(path, { method: "DELETE", authenticated }),
+  upload: (path: string, file: File) => uploadRequest(path, file),
 };

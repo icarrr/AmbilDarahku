@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { scrapeStaticHtml } from "@/lib/scrapers/static-html-scraper";
 import { scrapeAyodonor } from "@/lib/scrapers/ayodonor-scraper";
+import { scrapePmiBali } from "@/lib/scrapers/pmibali-scraper";
 import { SEED_SOURCES } from "@/lib/scrapers/source-registry";
 import { ScrapedEvent, SourceConfig, DiscoverResult } from "@/lib/event-discovery/types";
 import { filterNewEvents } from "@/lib/event-discovery/deduplicator";
@@ -68,6 +69,11 @@ async function scrapeSource(source: SourceConfig): Promise<{ events: ScrapedEven
         all.push(...events);
       }
       return { events: all };
+    }
+
+    if (source.sourceUrl === "https://pmibali.online") {
+      const events = await scrapePmiBali(source.detectionKeywords);
+      return { events };
     }
 
     if (source.sourceType === "pmi_national" || source.sourceType === "pmi_province" || source.sourceType === "pmi_city") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
@@ -9,20 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { toast } from "sonner";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Upload } from "lucide-react";
 import Link from "next/link";
 
 export default function NewClaimPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     donation_date: "",
     location: "",
     institution_name: "",
     blood_type: "",
     volume_ml: "350",
-    proof_photo_url: "",
-    proof_document_url: "",
     additional_notes: "",
   });
 
@@ -34,6 +36,11 @@ export default function NewClaimPage() {
 
     setSubmitting(true);
     try {
+      let proofPhotoUrl = "";
+      let proofDocUrl = "";
+      if (photoFile) proofPhotoUrl = await api.upload("/upload", photoFile);
+      if (docFile) proofDocUrl = await api.upload("/upload", docFile);
+
       const payload: Record<string, unknown> = {
         donation_date: form.donation_date,
         location: form.location,
@@ -41,8 +48,8 @@ export default function NewClaimPage() {
       };
       if (form.institution_name) payload.institution_name = form.institution_name;
       if (form.blood_type) payload.blood_type = form.blood_type;
-      if (form.proof_photo_url) payload.proof_photo_url = form.proof_photo_url;
-      if (form.proof_document_url) payload.proof_document_url = form.proof_document_url;
+      if (proofPhotoUrl) payload.proof_photo_url = proofPhotoUrl;
+      if (proofDocUrl) payload.proof_document_url = proofDocUrl;
       if (form.additional_notes) payload.additional_notes = form.additional_notes;
 
       await api.post("/claims", payload);
@@ -124,24 +131,49 @@ export default function NewClaimPage() {
           </div>
 
           <div className="space-y-1">
-            <Label>URL Bukti Foto</Label>
-            <Input
-              value={form.proof_photo_url}
-              onChange={e => setForm(p => ({ ...p, proof_photo_url: e.target.value }))}
-              placeholder="https://..."
+            <Label>Foto Bukti Donor</Label>
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/*"
+              onChange={e => setPhotoFile(e.target.files?.[0] || null)}
+              className="hidden"
             />
-            <p className="text-[10px] text-[#94a3b8]">
-              Link ke foto kartu donor atau sertifikat
-            </p>
+            {photoFile ? (
+              <p className="text-sm text-emerald-600">{photoFile.name} siap</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => photoRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-muted-foreground hover:border-red-300"
+              >
+                <Camera className="h-5 w-5" />
+                Pilih foto bukti donor
+              </button>
+            )}
           </div>
 
           <div className="space-y-1">
-            <Label>URL Dokumen Pendukung</Label>
-            <Input
-              value={form.proof_document_url}
-              onChange={e => setForm(p => ({ ...p, proof_document_url: e.target.value }))}
-              placeholder="https://..."
+            <Label>Dokumen Pendukung (opsional)</Label>
+            <input
+              ref={docRef}
+              type="file"
+              accept="image/*,.pdf"
+              onChange={e => setDocFile(e.target.files?.[0] || null)}
+              className="hidden"
             />
+            {docFile ? (
+              <p className="text-sm text-emerald-600">{docFile.name} siap</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => docRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-muted-foreground hover:border-red-300"
+              >
+                <Upload className="h-5 w-5" />
+                Pilih dokumen pendukung
+              </button>
+            )}
           </div>
 
           <div className="space-y-1">

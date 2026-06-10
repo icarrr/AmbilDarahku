@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, CalendarDays } from "lucide-react";
+import { ArrowLeft, CalendarDays, ImageUp } from "lucide-react";
 
 export default function NewEventPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -26,7 +28,6 @@ export default function NewEventPage() {
     organizer: "",
     contact_phone: "",
     quota: 50,
-    banner_url: "",
     status: "upcoming",
   });
 
@@ -41,10 +42,13 @@ export default function NewEventPage() {
     }
     setSaving(true);
     try {
+      let bannerUrl = "";
+      if (bannerFile) bannerUrl = await api.upload("/upload", bannerFile);
       await api.post("/events", {
         ...form,
         event_date: new Date(form.event_date).toISOString(),
         quota: Number(form.quota),
+        banner_url: bannerUrl || undefined,
       });
       toast.success("Event berhasil dibuat");
       router.push("/events");
@@ -120,8 +124,16 @@ export default function NewEventPage() {
               <Input type="number" min={1} value={form.quota} onChange={e => update("quota", Number(e.target.value))} />
             </div>
             <div className="space-y-1.5">
-              <Label>URL Banner</Label>
-              <Input value={form.banner_url} onChange={e => update("banner_url", e.target.value)} placeholder="https://..." />
+              <Label>Banner Event</Label>
+              <input ref={bannerRef} type="file" accept="image/*" onChange={e => setBannerFile(e.target.files?.[0] || null)} className="hidden" />
+              {bannerFile ? (
+                <p className="text-sm text-emerald-600">{bannerFile.name} siap</p>
+              ) : (
+                <button type="button" onClick={() => bannerRef.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-muted-foreground hover:border-red-300">
+                  <ImageUp className="h-5 w-5" />
+                  Pilih gambar banner
+                </button>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Status</Label>

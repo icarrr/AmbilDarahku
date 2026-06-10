@@ -39,6 +39,7 @@ type UserBadge = {
 
 type PublicProfile = {
   full_name: string;
+  avatar_url?: string | null;
   blood_type: string;
   city: string;
   weight_kg: number;
@@ -108,6 +109,7 @@ export default async function PublicPortfolioPage({
       <div className="text-center">
         <AvatarWithBadge
           name={profile.full_name}
+          avatarUrl={profile.avatar_url}
           size="xl"
           badge={{ label: topBadge, level: "gold" }}
         />

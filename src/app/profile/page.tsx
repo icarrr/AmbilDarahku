@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   Droplets, Heart, Plus, Search, Calendar, Trophy, MessageCircle, Award, Bell,
-  CalendarDays, ChevronRight, ShieldAlert, Shield, Medal, Lock,
+  CalendarDays, Camera, ChevronRight, ShieldAlert, Shield, Medal, Lock,
 } from "lucide-react";
 
 type BadgeData = {
@@ -55,6 +55,8 @@ export default function ProfilePage() {
   const [stats, setStats] = useState({ total_donations: user?.total_donations || 0, total_points: user?.total_points || 0 });
   const [trustScore, setTrustScore] = useState<number | null>(user?.trust_score ?? null);
   const [editing, setEditing] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const avatarRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     full_name: "", phone: "", city: "", username: "",
     province: "", district: "", blood_type: "", date_of_birth: "", gender: "",
@@ -83,6 +85,8 @@ export default function ProfilePage() {
 
   const updateProfile = async () => {
     try {
+      let avatarUrl = "";
+      if (avatarFile) avatarUrl = await api.upload("/upload", avatarFile);
       const payload: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(form)) {
         if (v !== "") {
@@ -93,9 +97,11 @@ export default function ProfilePage() {
           }
         }
       }
+      if (avatarUrl) payload.avatar_url = avatarUrl;
       await api.put("/auth/me", payload);
       toast.success("Profil diperbarui");
       setEditing(false);
+      setAvatarFile(null);
       refreshUser();
     } catch {
       toast.error("Gagal memperbarui profil");
@@ -160,9 +166,9 @@ export default function ProfilePage() {
             </div>
             <div className="hidden items-center gap-3 md:flex">
               <Bell className="h-5 w-5 text-[#94a3b8]" />
-              <AvatarWithBadge name={user.full_name} size="md" badge={{ label: topBadge, level: "gold" }} />
+              <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="md" badge={{ label: topBadge, level: "gold" }} />
             </div>
-            <AvatarWithBadge name={user.full_name} size="lg" badge={{ label: topBadge, level: "gold" }} className="md:hidden" />
+            <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="lg" badge={{ label: topBadge, level: "gold" }} className="md:hidden" />
           </div>
 
           {isUnverified && (
@@ -412,6 +418,18 @@ export default function ProfilePage() {
             </div>
             {editing && (
               <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                <div className="space-y-1">
+                  <Label>Foto Profil</Label>
+                  <input ref={avatarRef} type="file" accept="image/*" onChange={e => setAvatarFile(e.target.files?.[0] || null)} className="hidden" />
+                  {avatarFile ? (
+                    <p className="text-sm text-emerald-600">{avatarFile.name} siap</p>
+                  ) : (
+                    <button type="button" onClick={() => avatarRef.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-muted-foreground hover:border-red-300">
+                      <Camera className="h-5 w-5" />
+                      Pilih foto profil
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Nama</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
                   <div className="space-y-1"><Label>WhatsApp</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>

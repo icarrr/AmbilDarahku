@@ -32,6 +32,7 @@ export default function DonorHistoryPage() {
   const [form, setForm] = useState({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,49 +46,47 @@ export default function DonorHistoryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setPhotoPreview(dataUrl);
-      setForm(p => ({ ...p, proof_photo: dataUrl }));
-    };
-    reader.readAsDataURL(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const addHistory = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploading(true);
     try {
-      await api.post("/donor-history", { ...form, bags: parseInt(form.bags) });
+      let photoUrl = "";
+      if (photoFile) {
+        photoUrl = await api.upload("/upload", photoFile);
+      }
+      await api.post("/donor-history", { ...form, proof_photo: photoUrl, bags: parseInt(form.bags) });
       toast.success("Riwayat donor ditambahkan");
       setShowForm(false);
       setForm({ donation_date: "", location: "", institution: "", bags: "1", notes: "", proof_photo: "" });
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
       setPhotoPreview("");
       setPhotoFile(null);
       const d = await api.get<{ histories: History[] }>("/donor-history");
       setHistories(d.histories || []);
     } catch {
       toast.error("Gagal menambah riwayat");
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleEditPhoto = (historyId: string, file: File) => {
+  const handleEditPhoto = async (historyId: string, file: File) => {
     if (!file) return;
     setEditingId(historyId);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string;
-      try {
-        await api.put(`/donor-history/${historyId}`, { proof_photo: dataUrl });
-        toast.success("Foto bukti berhasil ditambahkan!");
-        const d = await api.get<{ histories: History[] }>("/donor-history");
-        setHistories(d.histories || []);
-      } catch {
-        toast.error("Gagal mengunggah foto");
-      } finally {
-        setEditingId(null);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const photoUrl = await api.upload("/upload", file);
+      await api.put(`/donor-history/${historyId}`, { proof_photo: photoUrl });
+      toast.success("Foto bukti berhasil ditambahkan!");
+      const d = await api.get<{ histories: History[] }>("/donor-history");
+      setHistories(d.histories || []);
+    } catch {
+      toast.error("Gagal mengunggah foto");
+    } finally {
+      setEditingId(null);
+    }
   };
 
   return (
@@ -138,16 +137,15 @@ export default function DonorHistoryPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
-                onChange={handlePhoto}
-                className="hidden"
+onChange={handlePhoto}
+                 className="hidden"
               />
               {photoPreview ? (
                 <div className="relative">
                   <img src={photoPreview} alt="Preview" className="h-40 w-full rounded-lg object-cover" />
                   <button
                     type="button"
-                    onClick={() => { setPhotoPreview(""); setPhotoFile(null); setForm(p => ({ ...p, proof_photo: "" })); }}
+                    onClick={() => { URL.revokeObjectURL(photoPreview); setPhotoPreview(""); setPhotoFile(null); }}
                     className="absolute right-2 top-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
                   >
                     <X className="h-4 w-4" />
@@ -173,7 +171,7 @@ export default function DonorHistoryPage() {
                 Tanpa foto, riwayat tidak akan terverifikasi
               </p>
             </div>
-            <Button type="submit">Simpan Riwayat</Button>
+            <Button type="submit" disabled={uploading}>{uploading ? "Mengunggah..." : "Simpan Riwayat"}</Button>
           </form>
         </GlassCard>
       )}
@@ -241,8 +239,7 @@ export default function DonorHistoryPage() {
                         ref={editFileInputRef}
                         type="file"
                         accept="image/*"
-                        capture="environment"
-                        onChange={e => {
+onChange={e => {
                           const file = e.target.files?.[0];
                           if (file) handleEditPhoto(h.id, file);
                         }}

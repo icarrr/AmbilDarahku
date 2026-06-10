@@ -2,12 +2,13 @@ import { cn } from "@/lib/utils";
 
 interface AvatarWithBadgeProps {
   name: string;
+  avatarUrl?: string | null;
   size?: "sm" | "md" | "lg" | "xl";
   badge?: { label: string; level?: "gold" | "silver" | "bronze" };
   className?: string;
 }
 
-export function AvatarWithBadge({ name, size = "md", badge, className }: AvatarWithBadgeProps) {
+export function AvatarWithBadge({ name, avatarUrl, size = "md", badge, className }: AvatarWithBadgeProps) {
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -30,14 +31,22 @@ export function AvatarWithBadge({ name, size = "md", badge, className }: AvatarW
 
   return (
     <div className={cn("relative inline-flex", className)}>
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 font-heading font-bold text-white",
-          sizeClasses[size],
-        )}
-      >
-        {initials}
-      </div>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={name}
+          className={cn("rounded-full object-cover", sizeClasses[size])}
+        />
+      ) : (
+        <div
+          className={cn(
+            "flex items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 font-heading font-bold text-white",
+            sizeClasses[size],
+          )}
+        >
+          {initials}
+        </div>
+      )}
       {badge && (
         <span
           className={cn(

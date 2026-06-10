@@ -29,6 +29,7 @@ const DATE_PATTERNS = [
   /(\d{4})-(\d{2})-(\d{2})/,
   /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
   /(\d{1,2})\s+-\s+(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i,
+  /(\d{2})-(\d{2})-(\d{2})\b/,
 ];
 
 export function extractDate(text: string): string | null {
@@ -63,6 +64,13 @@ export function extractDate(text: string): string | null {
         return `${year}-${String(month + 1).padStart(2, "0")}-${String(d1).padStart(2, "0")}`;
       }
     }
+    if (m.length === 4 && m[1] && m[2] && m[3] && /^\d{2}$/.test(m[1]) && /^\d{2}$/.test(m[2]) && /^\d{2}$/.test(m[3])) {
+      const d = parseInt(m[1]), mo = parseInt(m[2]), y = parseInt(m[3]);
+      const fullYear = 2000 + y;
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && fullYear >= 2024 && fullYear <= 2030) {
+        return `${fullYear}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+    }
   }
   return null;
 }
@@ -91,7 +99,7 @@ export function isValidEvent(event: {
   location?: string;
   city?: string;
 }): boolean {
-  if (!event.title || !event.eventDate || !event.location || !event.city) return false;
+  if (!event.title || !event.eventDate || !event.location) return false;
   const d = new Date(event.eventDate);
   if (isNaN(d.getTime())) return false;
   const now = new Date();
