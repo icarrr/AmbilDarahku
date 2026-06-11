@@ -1,312 +1,241 @@
-# AI Memory Layer — AmbilDarahku
-
-> Generated: 2026-06-02
-> Version: 3.0
-
----
+# MEMORY — AmbilDarahku
 
 ## 1. CORE SUMMARY
 
-**AmbilDarahku** — Indonesian community blood donor platform. Monorepo: Go/Gin backend + Next.js 16 frontend. JWT auth with refresh rotation, glassmorphism UI ("Vitality Flow"), PostgreSQL 16, Docker Compose (5 services).
-
-**Flow:** Donors register (blood type, location) → Requesters post blood requests by type/urgency/hospital → Donors search by location/blood type/compatibility → Requesters share cards via WhatsApp with QR → Fulfillments create auto-verified donor history → Stats/badges auto-updated.
-
-**Architecture:** Backend layered (handler→service→repository). 16 handlers, 6 services, 13 repositories. Frontend: 30 page.tsx in 27 routes, 22 components, single root layout with sidebar/nav/bottom-nav.
-
-**Phases implemented:**
-- Core auth, donor search, requests, history, badges, leaderboard, events
-- Phase 1: Donor Passport + Historical Claims
-- Phase 1b: Verification Framework + Unified Timeline
-- Phase 2: Award Engine + Recognition Portfolio
-- Phase 3: PMI Review Portal
-- Phase 4: Trust Dashboard + Analytics
-
-All seed accounts use password: `donor123`. No tests.
-
----
+Next.js 16 donor platform (Indonesia), 58+ API routes via Supabase JS client, custom JWT auth, Vercel Blob storage, PostgreSQL 16 (Supabase Cloud). 14 tables with RLS (service_role bypasses). Monorepo = frontend only at root (no Go backend). UI: Indonesian, Base UI + TailwindCSS 4 glassmorphism ("Vitality Flow"). 30 pages, 14 custom components. Event discovery via web scrapers (axios+cheerio). Dev password: `donor123`. Admin: `admin@ambildarahku.id` / `admin123`.
 
 ## 2. DOMAIN BREAKDOWN
 
-### auth
-- Register (12 fields, no rhesus/lat/lng) → sends verification email (SMTP optional, no-op when `SMTP_HOST` empty)
-- Login → JWT pair (15m access + 7d refresh with rotation)
-- Email verification via `verification_tokens` table; VerifyEmail returns new JWT
-- Forgot/reset password via token; change-password requires current password; 1-min rate limit on forgot
-- Middleware chain: `AuthRequired` (JWT) → `EmailVerifiedRequired` → `AdminRequired`/`PMIOrAdminRequired`
-- Unverified users restricted: only GET/PUT `/auth/me`, logout, resend-verification, change-password
-- Frontend blocks unverified on: /search, /requests, /requests/new, /requests/share/[id]
-- `refreshUser()` called after verify-email to update AuthContext with `email_verified: true`
+### Auth
+- Custom JWT (jsonwebtoken), bcrypt (12 rounds), refresh rotation (SHA-256 in `refresh_tokens`)
+- `AuthContext` in React Context — `user`, `isUnverified`, `login()/register()/logout()`
+- Access 15m / Refresh 7d (configurable via `JWT_ACCESS_EXPIRY` / `JWT_REFRESH_EXPIRY`)
+- Unverified users blocked from all non-auth endpoints (403 "email not verified")
+- Email via Nodemailer/SMTP (Brevo), optional (no-op if `SMTP_HOST` empty)
 
-### donor
-- **Profile** — blood_type, rhesus (hidden in UI, "+" default), date_of_birth, gender, weight, height, location (prov/city/district), avatar, username
-- **Eligibility engine** (`pkg/eligibility/`) — modular `Rule` interface: `AgeRule` (17-60 first, 65 repeat), `WeightRule` (≥45kg), `DonationIntervalRule` (56 days). Statuses: `eligible | not_eligible | waiting_period | needs_clearance`
-- **Availability** — automatic mode syncs with eligibility; manual mode allows override with reason + ready_again_date
-- **Donor history** — chronological log with proof photo upload; verification; duplicate-day guard (409)
-- **Badges** — 6 tiers (Pemula=1, Penolong=5, Pahlawan=10, Guardian=25, Legend=50, Champion=100). Auto-awarded on `RefreshDonationStats`
-- **Search priority** — P1=eligible+available, P2=ready≤3d, P3=ready≤7d, P4=other
-- **Donor search** — auth-gated (JWT), filter by blood_type, city, radius (haversine), `compatible_with`, availability
+### Donor
+- Eligibility: age 18–65, weight ≥50kg, donation interval ≥56d
+- Volume: always 0.45L/bag (no weight-based split)
+- Statuses: `eligible`, `waiting_period`, `not_eligible`, `needs_clearance`
+- Availability modes: `automatic` (follows eligibility) / `manual` (user chooses)
+- Search priority: P1 (eligible+available), P2 (ready ≤3d), P3 (ready ≤7d), P4 (other)
+- Duplicate-date guard: 409 if donor_history exists for same user+date
 
-### request
-- Blood requests: patient_name, hospital, blood_type (rhesus hardcoded "+"), urgency (critical/urgent/normal), city, contact_phone
-- **Fulfillment** — `request_fulfillments` table; atomic increment of fulfilled_bags with row lock
-- **Share card** — public page with QR (api.qrserver.com), compatibility matrix, progress bar, WhatsApp deep link
-- "Saya Sudah Donor" button with compatibility guard + tooltip
+### Blood Requests
+- Create → share card (QR + WhatsApp) → donor fulfills (auto-creates `pending` history)
+- Fulfillment: atomic increment `fulfilled_bags`, auto-close when `>= bags`
+- Urgency sort: critical → urgent → normal, then newest first
+- Rhesus defaults to `"+"` (not exposed in UI)
 
-### blood compatibility (`pkg/blood/` + `lib/blood-compatibility.ts`)
-- Full ABO+Rh rules: O- universal donor, AB+ universal recipient
-- Frontend mirrors with `compatibleDonorsFor()`, `canDonateTo()`
-- Rhesus + encoding fix for search URLs
+### Passport
+- Format: `ADK-YYYY-NNNNNN`, QR token: 64-char hex (URL path `/passport/verify/:token`)
+- One per user (UNIQUE `user_id`). `/recognition` → 301 → `/passport`
+- Stats: total donations, lives saved (×3), volume (×0.45), titles, badges (nested `badge` object)
 
-### passport (Phase 1)
-- National Donor Passport: passport number (ADK-YYYY-NNNNNN), QR token (64-char hex), renew, print
-- Public QR verification page (SSR)
-- Non-JWT token (stateless, publicly cacheable)
+### Claims & Verification
+- Claims: pending → approved/rejected. Approved triggers `RefreshDonationStats` (no auto-create history)
+- Verification levels: 0=None, 1=Self, 2=Community, 3=PMI. Level computed as `currentLevel + 1`
+- Trust score: donation count (30%), verification (30%), claim accuracy (20%), profile (10%, 11 fields), age (10%)
+- API response key: `verifications` (not `history`)
 
-### claims (Phase 1)
-- Historical Donation Claims: pending→approved/rejected workflow
-- Approved claims call RefreshDonationStats (no auto-create donor_history — prevents duplicates)
+### Events
+- CRUD + automatic discovery from PMI websites (ayodonor.pmi.or.id, pmibali.online, etc.)
+- `event_sources` table defines scraper endpoints. `events` has `is_archived` for stale events
+- Deduplication via `(source_type, source_id)` unique index
+- Admin-only POST `/api/v1/events/discover` triggers scraping
 
-### verification (Phase 1b)
-- Levels: 0 (none) → 1 (self) → 2 (community) → 3 (PMI)
-- Approval auto-updates user's verification_level
-- One pending request per level
-
-### timeline (Phase 1b)
-- UNION: donor_histories + donation_claims + user_badges, paginated (limit/offset)
-- Public timeline excludes claims (only donations + badges)
-
-### recognition (Phase 2)
-- Printable portfolio with gradient header, stats, titles, badges, QR code
-- Admin CRUD for award configs (title/badge/certificate, JSON criteria, scope)
-- Manual title awarding
-
-### admin / pmi (Phase 3-4)
-- Dashboard: stats (pending claims/verifications, users, donors, donations)
-- Claims review queue (approve/reject with reason)
-- Verifications review queue (approve/reject with notes)
-- Analytics: institutions, cities, years, months, age distribution, top donors
-- Award config CRUD, title management
-
-### trust score (Phase 4)
-- 5 components: donation count 30%, verification level 30%, claim accuracy 20%, profile complete 10%, account age 10%
-- Calculated on-the-fly, stored to users.trust_score
-- Public endpoint returns score only
-
-### event
-- Blood drive events: title, date/time, location, city, quota, status
-- NGO-themed cards with countdown, progress bar, gradient accents
-- Admin creates; public lists upcoming
-
-### leaderboard
-- National (top 100) and regional (top 50 by city) with gold/silver/bronze podium
-- Current user highlighted in red
-
----
+### Admin
+- Roles: `super_admin` (full), `pmi_admin` (review queue only), `donor` (default)
+- 6 analytics endpoints (institutions, cities, years, months, age, top-donors) — JS-aggregated
+- Award config CRUD, title assignment, user role management
 
 ## 3. API MAP
 
-All under `/api/v1`. [P]=public, [A]=auth, [V]=verified(email), [AD]=admin(super_admin), [PMI]=super_admin|pmi_admin.
+### Public (no auth)
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/health` | `{ "status": "ok" }` |
+| GET | `/api/v1/stats` | active_donors, lives_saved, etc. |
+| POST | `/api/v1/auth/register` | Full registration |
+| POST | `/api/v1/auth/login` | Returns user + token pair |
+| POST | `/api/v1/auth/refresh` | Token rotation |
+| POST | `/api/v1/auth/verify-email` | Token verification |
+| POST | `/api/v1/auth/forgot-password` | 1/min rate limit |
+| POST | `/api/v1/auth/reset-password` | Token + new password |
+| GET | `/api/v1/u/[username]` | Public profile |
+| GET | `/api/v1/requests` | Open requests (filterable) |
+| GET | `/api/v1/requests/[id]` | Request + fulfillments |
+| GET | `/api/v1/requests/[id]/fulfillments` | Fulfillment list |
+| GET | `/api/v1/leaderboard/national` | Top 100 |
+| GET | `/api/v1/leaderboard/regional?city=` | Top 50 |
+| GET | `/api/v1/events` | Upcoming/ongoing |
+| GET | `/api/v1/events/archive?city=&page=&per_page=` | Archived events |
+| GET | `/api/v1/passport/verify/[token]` | SSR QR verification |
+| GET | `/api/v1/passport/[username]` | Public passport |
+| GET | `/api/v1/timeline/[username]?limit=&offset=` | Public timeline |
+| GET | `/api/v1/recognition/[username]` | Public portfolio |
+| GET | `/api/v1/trust-score/[username]` | Public trust score |
 
-### Public
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/stats` | Dashboard stats |
-| POST | `/auth/register` | Register (12 fields, no rhesus/lat/lng) |
-| POST | `/auth/login` | Login → JWT pair |
-| POST | `/auth/refresh` | Token refresh + rotation |
-| POST | `/auth/verify-email` | Verify email → new JWT |
-| POST | `/auth/forgot-password` | Send reset token (1-min rate limit) |
-| POST | `/auth/reset-password` | Reset password via token |
-| GET | `/u/:username` | Public profile (national_donor_id, donation_volume, verification_level, trust_score, badges) |
-| GET | `/requests` | Open requests (filters: blood_type, urgency, limit) |
-| GET | `/requests/:id` | Request by ID |
-| GET | `/requests/:id/fulfillments` | List fulfillments |
-| GET | `/leaderboard/national` | Top 100 |
-| GET | `/leaderboard/regional` | Top 50 by city |
-| GET | `/events` | Upcoming events |
-| GET | `/passport/verify/:token` | Public QR verification |
-| GET | `/passport/:username` | Passport by username |
-| GET | `/timeline/:username` | Public timeline |
-| GET | `/recognition/:username` | Public recognition portfolio |
-| GET | `/trust-score/:username` | Public trust score |
+### Authenticated (JWT)
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/auth/me` | User profile |
+| PUT | `/api/v1/auth/me` | Partial update |
+| POST | `/api/v1/auth/logout` | Delete all refresh tokens |
+| POST | `/api/v1/auth/resend-verification` | Resend email |
+| PUT | `/api/v1/auth/change-password` | Current + new |
+| GET | `/api/v1/donors?blood_type=&city=&compatible_with=&lat=&lng=&radius=` | Search with distance |
 
-### Auth (JWT)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/donors` | Search donors (blood_type, city, radius, compatible_with) |
-| GET | `/auth/me` | Profile + badges |
-| PUT | `/auth/me` | Update profile |
-| POST | `/auth/logout` | Invalidate all refresh tokens |
-| POST | `/auth/resend-verification` | Resend verification email |
-| PUT | `/auth/change-password` | Change password |
-
-### Verified Email (JWT + email_verified)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/POST | `/donor-history` | List/add donation records |
-| PUT | `/donor-history/:id` | Upload proof photo |
-| POST | `/requests` | Create blood request |
-| GET | `/requests/mine` | My requests |
-| PUT | `/requests/:id/status` | Update status |
-| POST | `/requests/:id/fulfill` | Fulfill request |
-| GET/PUT | `/donor-status` | Eligibility + availability |
-| GET/POST | `/donor-verification` | Verification levels |
-| GET | `/passport` | My passport |
-| POST | `/passport/request` | Request passport |
-| POST | `/passport/renew` | Renew passport |
-| GET/POST/PUT/DEL | `/claims`, `/claims/:id` | Donation claims CRUD |
-| GET | `/timeline` | My timeline |
-| GET | `/recognition` | My recognition portfolio |
-| GET/POST | `/trust-score`, `/trust-score/refresh` | Trust score |
+### Verified Email Required (JWT + email_verified)
+| Method | Path | Notes |
+|--------|------|-------|
+| GET/POST | `/api/v1/donor-history` | List/Create history |
+| PUT/DELETE | `/api/v1/donor-history/[id]` | Edit/Delete with stats recalc |
+| GET/PUT | `/api/v1/donor-status` | Eligibility + availability |
+| GET/POST | `/api/v1/donor-verification` | Verification levels |
+| POST | `/api/v1/requests` | Create request |
+| GET | `/api/v1/requests/mine` | My requests |
+| PUT | `/api/v1/requests/[id]/status` | Cancel/fulfill |
+| POST | `/api/v1/requests/[id]/fulfill` | Record donation (1 bag, pending) |
+| GET | `/api/v1/passport` | My passport |
+| POST | `/api/v1/passport/request` | Create passport |
+| POST | `/api/v1/passport/renew` | Renew passport |
+| GET | `/api/v1/recognition` | My portfolio |
+| GET | `/api/v1/timeline?limit=&offset=` | My timeline |
+| GET | `/api/v1/trust-score` | My score |
+| POST | `/api/v1/trust-score/refresh` | Recalculate |
+| GET/POST | `/api/v1/claims` | List/Create |
+| GET/PUT/DELETE | `/api/v1/claims/[id]` | Get/Update/Cancel |
+| POST | `/api/v1/upload` | File upload → Vercel Blob URL |
+| GET | `/api/v1/files?url=` | Proxy private blob |
 
 ### Admin (super_admin)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/PUT | `/admin/users`, `/admin/users/:id/role` | User management |
-| POST | `/events` | Create event |
-| GET/POST/PUT/DEL | `/admin/awards`, `/admin/awards/:id` | Award config CRUD |
-| POST/GET | `/admin/titles`, `/admin/titles` | Title management |
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/admin/stats` | Dashboard stats |
+| GET | `/api/v1/admin/users` | List all |
+| PUT | `/api/v1/admin/users/[id]/role` | Change role |
+| POST | `/api/v1/events` | Create event |
+| POST | `/api/v1/events/discover` | Trigger scraping |
+| GET/POST/PUT/DELETE | `/api/v1/events/sources` | Event source CRUD |
+| GET/POST | `/api/v1/admin/awards` | Awards CRUD |
+| PUT/DELETE | `/api/v1/admin/awards/[id]` | Award update/delete |
+| GET/POST | `/api/v1/admin/titles` | Title management |
 
-### PMI Review (super_admin|pmi_admin)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/admin/stats` | Dashboard stats |
-| GET | `/admin/claims` | Pending claims list |
-| GET | `/admin/claims/:id` | Claim detail |
-| PUT | `/admin/claims/:id/review` | Approve/reject claim |
-| GET | `/admin/verifications` | Pending verifications |
-| PUT | `/admin/verifications/:id/review` | Approve/reject verification |
-| GET | `/admin/analytics/*` (6) | Analytics endpoints |
-
----
+### PMI/Admin (super_admin OR pmi_admin)
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/api/v1/admin/claims` | Pending claims list |
+| GET | `/api/v1/admin/claims/[id]` | Claim detail |
+| PUT | `/api/v1/admin/claims/[id]/review` | Approve/reject |
+| GET | `/api/v1/admin/verifications` | Pending verifications |
+| PUT | `/api/v1/admin/verifications/[id]/review` | Approve/reject |
+| GET | `/api/v1/admin/analytics/*` | 6 aggregation endpoints |
 
 ## 4. DATA MAP
 
-### Tables (14)
-`users`, `donor_histories`, `donor_verifications`, `blood_requests`, `request_fulfillments`, `badges`, `user_badges`, `refresh_tokens`, `verification_tokens`, `events`, `donor_passports`, `donation_claims`, `award_configs`, `user_titles`
+### Entities (14 tables)
+| Table | Key Columns | Relations |
+|-------|------------|-----------|
+| `users` | id (UUID PK), full_name, phone (UNIQUE), email (UNIQUE), blood_type, role, total_donations, verification_level, trust_score, address, nik | FK child of all user-related tables |
+| `donor_histories` | user_id (FK CASCADE), donation_date, bags, verification_status, proof_photo | user_id → users |
+| `donor_verifications` | user_id (FK), level (1-3), status | user_id → users |
+| `blood_requests` | requester_id (FK), patient_name, blood_type, bags, fulfilled_bags, urgency, status | requester_id → users |
+| `request_fulfillments` | request_id (FK), donor_id (FK), bags | request_id → blood_requests, donor_id → users |
+| `badges` | name (UNIQUE), min_donations | Seeded: 1/5/10/25/50/100 |
+| `user_badges` | user_id (FK), badge_id (FK) | UNIQUE(user_id, badge_id) |
+| `refresh_tokens` | user_id (FK), token_hash (SHA-256), expires_at | user_id → users |
+| `verification_tokens` | user_id (FK), token, type, expires_at | user_id → users |
+| `events` | title, city, event_date, source_url, source_type, source_id, is_archived, raw_data | UNIQUE(source_type, source_id) WHERE source_id NOT NULL |
+| `event_organizers` | name, city, is_active | events.organizer_id → event_organizers |
+| `event_sources` | source_type, source_url, scraper_config (JSONB), detection_keywords (TEXT[]) | Scraper configuration |
+| `donor_passports` | user_id (FK UNIQUE), passport_number (UNIQUE ADK-YYYY-NNNNNN), qr_token (UNIQUE 64-char hex) | user_id → users |
+| `donation_claims` | user_id (FK), status, reviewed_by | user_id → users |
+| `award_configs` | name, award_type, criteria (JSONB), scope | Config for titles |
+| `user_titles` | user_id (FK), title, source, config_id | user_id → users, config_id → award_configs |
 
-### Key Notes
-- Migrations: auto-run idempotent DDL on startup (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS)
-- No soft deletes, no audit logging, no migration versioning
-- `rhesus` column NOT NULL; all inserts use `"+"` (never shown in UI)
-- `latitude`/`longitude` DEFAULT 0
-
----
+### Storage
+- Vercel Blob (private) — proof photos, avatars → proxied through `/api/v1/files?url=...`
+- No local file storage
 
 ## 5. UI MAP
 
-### Pages (30 page.tsx in 27 routes)
-| Route | Auth | Description |
-|---|---|---|
-| `/` | No | Landing page with live API stats |
-| `/login` | No | Login form |
-| `/register` | No | 3-step form (profile→blood→domicile) |
-| `/forgot-password` | No | Email → success + WhatsApp contact (Suspense) |
-| `/reset-password` | No | Token from URL → new password (Suspense) |
-| `/verify-email` | No | Token → auto-store JWT + refreshUser (Suspense) |
-| `/profile` | JWT | Dashboard: stats ring, verification card, trust score, timeline, edit form, change password, availability toggle |
-| `/search` | JWT | Donor search: filters, geolocation, clickable cards |
-| `/requests` | JWT | Blood request listing |
-| `/requests/new` | V | Create request form with blood type hint |
-| `/requests/share/[id]` | V | Share card with QR, compatibility, fulfill flow |
-| `/donor-history` | V | Donation log: list, add, proof upload |
-| `/leaderboard` | No | National/regional with animated podium |
-| `/events` | No | Upcoming events list |
-| `/events/new` | AD | Create event form |
-| `/passport` | V | Passport card with QR, print, renew |
-| `/passport/verify/[token]` | No | Public QR verification (SSR) |
-| `/claims` | V | Donation claims list |
-| `/claims/new` | V | Claim submission form |
-| `/verification` | V | Verification level progress + submit form |
-| `/timeline` | V | Filterable activity feed |
-| `/recognition` | V | Printable portfolio with QR |
-| `/admin` | AD | Dashboard + user management |
-| `/admin/analytics` | PMI | Analytics with bar charts |
-| `/admin/verifications` | PMI | Verification review queue |
-| `/admin/claims` | PMI | Claim review queue |
-| `/admin/awards` | AD | Award config CRUD |
-| `/u/[username]` | No | Public portfolio (SSR) |
-| `/privacy` | No | Privacy policy (SSR) |
-| `/terms` | No | Terms of service (SSR) |
+### Page Tree
+```
+/login                    → Login form
+/register                 → 3-step registration (profile→blood→domicile)
+/forgot-password          → Email form
+/reset-password           → Token + new password (Suspense)
+/verify-email             → Token verification (Suspense)
+/                         → Landing with live stats
+/search                   → Donor search (filters, map, cards)
+/profile                  → Dashboard (stats ring, badges, trust, edit, availability toggle)
+/donor-history            → CRUD history list + proof photo upload
+/requests                 → Open request list
+/requests/new             → Create request form
+/requests/share/[id]      → Share card (QR, WhatsApp, confirm + fulfill)
+/passport                 → Passport (QR, stats, badges, titles, verification)
+/passport/verify/[token]  → SSR public verification page
+/recognition              → 301 → /passport
+/verification             → Submit verification request
+/claims                   → Claim list
+/claims/new               → New claim form
+/timeline                 → Activity feed
+/leaderboard              → National/regional ranking (podium)
+/events                   → Event list
+/events/new               → Admin create event
+/events/archive           → Archived events with city filter
+/u/[username]             → SSR public profile
+/admin                    → Dashboard with stats
+/admin/claims             → Review claims
+/admin/verifications      → Review verifications
+/admin/awards             → Award config CRUD
+/admin/analytics          → Bar charts (6 dimensions)
+/privacy                  → SSR privacy policy
+/terms                    → SSR terms of service
+```
 
-### Components (22)
-- **Nav**: `navbar.tsx`, `bottom-nav.tsx`, `desktop-sidebar.tsx`
-- **Display**: `glass-card.tsx`, `donor-card.tsx`, `stat-card.tsx`, `timeline.tsx`, `section-title.tsx`
-- **Badges**: `blood-type-badge.tsx`, `status-badge.tsx`, `urgency-badge.tsx`, `rank-badge.tsx`, `avatar-with-badge.tsx`
-- **UI** (base-ui/shadcn): button, input, label, select, card, badge, skeleton, sonner, alert
+### Component Hierarchy
+```
+RootLayout
+├── AuthProvider (context)
+├── DesktopSidebar (md+ only)
+│   └── Nav links: Search, Requests, Profile, Passport, Leaderboard, Events, Timeline, Admin
+├── <main>
+│   └── Page content
+├── BottomNav (mobile fixed)
+│   └── Nav links: Home, Search, Requests, Profile, Passport
+└── Toaster (sonner)
+```
 
-### Key Patterns
-- `params` is `Promise<T>` — unwrapped with `use()` (Next.js 16)
-- `useSearchParams()` requires `<Suspense>` boundary
-- Auth via `useAuth()` context: user, loading, isAdmin, isUnverified, login, register, logout, refreshUser
-- API client auto-attaches JWT, handles 401→refresh→retry, 403→redirect verify-email
-
----
+Custom components: `GlassCard`, `ConfirmDialog` (portal-based), `AvatarWithBadge`, `BloodTypeBadge`, `StatusBadge`, `UrgencyBadge`, `DonorCard`, `StatCard`, `SectionTitle`, `Timeline`, `RankBadge`, `Navbar`, `DesktopSidebar`, `BottomNav`
 
 ## 6. INFRA MAP
 
-### Docker Compose (5 services)
-postgres:16-alpine (:5432), redis:7-alpine (:6379), minio/minio (:9000/9001), backend (Go→alpine, :8080), frontend (Node 20→standalone, :3000)
+| Environment | DB | Storage | Auth | Deploy |
+|---|---|---|---|---|
+| Dev (local) | Supabase Cloud or Docker PG | Vercel Blob (dev token) | Custom JWT (local SECRET) | `npm run dev` |
+| Production | Supabase Cloud PG | Vercel Blob (prod token) | Custom JWT (prod SECRET) | Vercel or `npm run build` + `npm start` |
+| CI | None (build only) | None | None | GitHub Actions, ubuntu-latest, node 22 |
 
-### Build
-- Backend: multi-stage (golang→alpine 3.19, CGO_ENABLED=0)
-- Frontend: multi-stage (node:20-alpine, npm ci → npm run build, standalone output)
+Docker Compose: `postgres:16-alpine`, `redis:7-alpine` (unused), `frontend` (node:22-alpine, standalone output)
+No K8s, no staging environment declared.
 
-### Config
-- Required: `DB_*`, `JWT_SECRET`, `APP_URL`, `SERVER_PORT`
-- Optional SMTP: `SMTP_HOST`/`PORT`/`USER`/`PASS`/`FROM` (fallback `SMTP_SENDER`)
-- Optional storage: `S3_ENDPOINT`/`BUCKET`/`KEY`/`SECRET` (empty = mock)
-- Frontend: `NEXT_PUBLIC_API_URL=/api/v1` (proxied via rewrites), `BACKEND_URL=http://backend:8080`
+## 7. CHANGE DIGEST
 
-### Known Issues
-- Redis container running but zero usage in code
-- No production deployment config (no k8s, terraform, monitoring)
-- No HTTPS termination
-- File upload mock only (no real storage unless S3 env vars set)
-
----
-
-## 7. CHANGE DIGEST (post-v2.0)
-
-| # | Date | Change | Key Files |
-|---|---|---|---|
-| 1 | Jun 02 | **Phase 1 — Donor Passport** | passport_handler.go, donor_passport_repository.go, passport/page.tsx, passport/verify/[token]/page.tsx |
-| 2 | Jun 02 | **Phase 1 — Donation Claims** | claim_handler.go, donation_claim_repository.go, claims/page.tsx, claims/new/page.tsx |
-| 3 | Jun 02 | **Phase 1b — Verification Framework** | verification_handler.go, donor_verification_repository.go, verification/page.tsx |
-| 4 | Jun 02 | **Phase 1b — Unified Timeline** | timeline_handler.go, timeline/page.tsx |
-| 5 | Jun 02 | **Phase 2 — Award Engine** | recognition_handler.go, award_config_repository.go, user_title_repository.go, recognition/page.tsx, admin/awards/page.tsx |
-| 6 | Jun 02 | **Phase 3 — PMI Review Portal** | admin_handler.go, admin/claims/page.tsx, admin/verifications/page.tsx |
-| 7 | Jun 02 | **Phase 4 — Trust Dashboard** | trust_handler.go, trust_service.go, admin/analytics/page.tsx |
-| 8 | Jun 02 | **Phase 4 — Analytics** | analytics_handler.go (6 endpoints) |
-| 9 | Jun 02 | **UI Polish** | register redesign, skeleton loading, empty states, animations, bottom-nav links |
-| 10 | Jun 02 | **Rhesus removed from all frontend** | 12 frontend files, 8 backend files; default "+" on insert |
-| 11 | Jun 02 | **Registration lat/lng removed** | auth_service.go, register/page.tsx (DB DEFAULT 0) |
-| 12 | Jun 02 | **Search auth-gated** | GET /donors moved to auth group in router.go |
-| 13 | Jun 02 | **Unverified user page blocks** | search, requests, requests/new, requests/share pages |
-| 14 | Jun 02 | **SMTP_SENDER fallback** | config.go getEnvWithFallback |
-| 15 | Jun 02 | **Email templates redesigned** | email_service.go (branded HTML) |
-| 16 | Jun 02 | **Seed background goroutine** | main.go "go seed.SeedDummy(db)" |
-| 17 | Jun 02 | **Seed batch INSERT + dedup** | dummy.go transaction + globalEmailCounter |
-| 18 | Jun 02 | **GetPublicURL fix** | file_service.go (was literal "TODO") |
-| 19 | Jun 02 | **Badge auto-award** | RefreshDonationStats awards badges on count thresholds |
-| 20 | Jun 02 | **Donation volume calculation** | 0.35L ≤55kg / 0.45L >55kg |
-| 21 | Jun 02 | **.env.local not excluded from Docker** | frontend/.dockerignore |
-| 22 | Jun 02 | **Logout redirect** | auth-context.tsx router.push("/") |
-| 23 | Jun 02 | **Email verification state bug** | verify-email/page.tsx — added await refreshUser() post-verification |
-
----
-
-## 8. MISSING AREAS
-
-- **Tests**: Zero across entire project
-- **Error boundaries**: No `error.tsx` or `loading.tsx` in any route
-- **Redis**: Container running, zero usage in code
-- **Production infra**: No k8s, terraform, monitoring, backups, HTTPS
-- **Rate limiting**: Only forgot-password (in-memory); no general rate limiter
-- **Privacy**: Phone numbers exposed via search API to authenticated users
-- **Audit logging**: None
-- **Pagination**: None on most list endpoints (donor history, requests, search, admin users)
-- **Notifications**: No push/email alert when urgent request matches donor's blood type
-- **PDF certificate**: Not implemented
-- **Event QR check-in**: Not implemented
+- **Migrated from Go/Gin backend to Next.js API routes + Supabase** — all backend logic now in `src/app/api/v1/*/route.ts`
+- **File storage from MinIO/S3 to Vercel Blob** — private blobs proxied through `/api/v1/files`
+- **RLS enabled on all 14 tables** — service_role bypasses, anon key unused
+- **Donation volume always 0.45L** — removed weight-based split (≤55kg=0.35L)
+- **Age rule simplified**: min 18, max 65 (removed first-time 17-60 / repeat up to 65 split)
+- **Weight rule**: 50kg minimum (was 45kg)
+- **Verification API response key**: `verifications` (not `history`)
+- **Recognition → Passport merge**: `/recognition` 301 redirects to `/passport`
+- **Event discovery**: scrapers for 6+ PMI sources, dedup via `(source_type, source_id)` index
+- **Donor history auto-verify**: photo upload sets `verification_status: "verified"`
+- **Fulfill via share page**: creates `pending` history (requires photo to auto-verify)
+- **Profile fields for trust score**: expanded to 11 fields (denominator 11)
+- **DB schema additions**: `address`, `nik` on users; `source_url`, `source_type`, `source_id`, `is_archived`, `archived_at`, `raw_data` on events; `event_organizers` table; `event_sources` table
+- **Refresh stats**: removed `refresh_donor_stats` RPC, JS fallback always executes
+- **Availability toggle**: always sends `"manual"` mode so user choice is respected
+- **QR URLs**: use `NEXT_PUBLIC_APP_URL` env var instead of `window.location.origin`

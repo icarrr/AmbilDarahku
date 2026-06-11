@@ -3,184 +3,187 @@
 ## High-Level Architecture
 
 ```
-┌──────────────┐     ┌──────────────────┐     ┌────────────┐
-│   Next.js 16  │────▶│   Go Gin API     │────▶│ PostgreSQL │
-│   Frontend    │HTTP │   :8080          │ SQL │    :5432   │
-│   :3000       │     │                  │     │            │
-└──────────────┘     └──────┬───────────┘     └────────────┘
-                            │                        
-                     ┌──────▼───────────┐     
-                     │   MinIO / S3     │     
-                     │   :9000          │     
-                     │   (mock fallback │     
-                     │    if no S3 env) │     
-                     └──────────────────┘     
+┌─────────────────────────────────────────────────────────┐
+│                    Browser (Client)                      │
+│  Next.js App: AuthProvider → Page → api.ts → HTTP       │
+└────────────────────┬────────────────────────────────────┘
+                     │  Bearer JWT (localStorage)
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│              Next.js Server (Node.js)                    │
+│                                                          │
+│  /api/v1/*  route.ts files                              │
+│    ├─ auth-middleware.ts (JWT verify)                    │
+│    ├─ requireAuth → isAuthContext → handler              │
+│    ├─ checkVerifiedEmail / checkAdmin / checkPMIOrAdmin  │
+│    └─ handler → supabase.from().select()                 │
+│                                                          │
+│  Pages (SSR/SSG/Client)                                  │
+│    ├─ layout.tsx (Root: AuthProvider + Nav + Toaster)    │
+│    ├─ page.tsx (landing, SSR public pages)               │
+│    └─ "use client" pages (authenticated)                 │
+└──────────┬──────────────┬───────────────────────────────┘
+           │              │
+           ▼              ▼
+┌──────────────────┐  ┌──────────────────┐
+│   Supabase API    │  │   Vercel Blob    │
+│   (Cloud PG)      │  │   (File Storage) │
+│                   │  │                  │
+│   Tables:         │  │  uploads/*       │
+│   users,          │  │  (private)       │
+│   donor_histories,│  │                  │
+│   blood_requests, │  │  Proxied via     │
+│   badges,         │  │  /api/v1/files   │
+│   events, ...     │  │                  │
+└──────────────────┘  └──────────────────┘
 ```
 
-## Application Architecture (Backend)
+## Application Architecture
+
+### Layer Pattern (per API route)
 
 ```
-cmd/server/main.go
- ├─ config.Load()
- ├─ database.NewPostgres() → sqlx.DB
- ├─ database.RunMigrations()  (14 tables + ALTER TABLE)
- ├─ badgeRepo.SeedDefaults()
- ├─ seed.SeedAdmin() (optional)
- ├─ go seed.SeedDummy(db) (background, if SEED_DUMMY=true)
- └─ routes.Setup() → gin.Engine
-      └─ r.Run(":" + port)
+Request → requireAuth() → checkVerifiedEmail() → handler()
+                                                      │
+                                         supabase.from("table")
+                                              .select/insert/update
+                                              .eq("id", id)
+                                              .maybeSingle()
 ```
 
-```
-routes/router.go
- ├─ Public group (no auth)
- │    ├─ GET /health, /stats
- │    ├─ POST /auth/register, /auth/login, /auth/refresh
- │    ├─ POST /auth/verify-email, /auth/forgot-password, /auth/reset-password
- │    ├─ GET /u/:username, /requests, /requests/:id, /requests/:id/fulfillments
- │    ├─ GET /leaderboard/national, /leaderboard/regional
- │    ├─ GET /events
- │    ├─ GET /passport/verify/:token, /passport/:username
- │    ├─ GET /timeline/:username
- │    ├─ GET /recognition/:username
- │    └─ GET /trust-score/:username
- │
- ├─ Auth group (JWT required)
- │    ├─ GET /donors (search)
- │    ├─ GET/PUT /auth/me
- │    ├─ POST /auth/logout, /auth/resend-verification
- │    └─ PUT /auth/change-password
- │
- ├─ Verified-email group (JWT + email_verified)
- │    ├─ GET/POST /donor-history, PUT /donor-history/:id
- │    ├─ POST /requests, GET /requests/mine
- │    ├─ PUT /requests/:id/status, POST /requests/:id/fulfill
- │    ├─ GET/PUT /donor-status
- │    ├─ GET/POST /donor-verification
- │    ├─ GET /recognition
- │    ├─ GET /timeline
- │    ├─ GET/POST /passport, POST /passport/renew
- │    ├─ GET /trust-score, POST /trust-score/refresh
- │    └─ GET/POST/PUT/DELETE /claims, /claims/:id
- │
- ├─ Admin group (super_admin)
- │    ├─ GET/PUT /admin/users, /admin/users/:id/role
- │    ├─ POST /events
- │    ├─ GET/POST/PUT/DELETE /admin/awards, /admin/awards/:id
- │    └─ POST /admin/titles, GET /admin/titles
- │
- └─ PMI group (super_admin OR pmi_admin)
-      ├─ GET /admin/stats
-      ├─ GET /admin/claims, /admin/claims/:id
-      ├─ PUT /admin/claims/:id/review
-      ├─ GET /admin/verifications
-      ├─ PUT /admin/verifications/:id/review
-      └─ GET /admin/analytics/* (6 endpoints)
-```
+No service/repository layers — handlers query Supabase directly. Auth logic extracted to `auth-middleware.ts`.
 
-```
-Layered Architecture (per request)
+### Key Library Modules
 
- Handler (HTTP binding)
-   └─ Service (business logic)
-        └─ Repository (data access)
-             └─ sqlx.DB (PostgreSQL)
-
- Some handlers skip Service layer (donor_history, blood_request
- operate directly on repo from handler)
-```
-
-## Handlers (16 files)
-
-| Handler | Key Functions |
+| Module | Role |
 |---|---|
-| `auth_handler.go` | Register, Login, Refresh, Logout, VerifyEmail, ResendVerification, ForgotPassword, ResetPassword, ChangePassword |
-| `user_handler.go` | GetProfile, UpdateProfile, ListAll, UpdateUserRole, GetPublicProfile |
-| `donor_history_handler.go` | List, Create, Update |
-| `blood_request_handler.go` | Create, ListOpen, GetByID, MyRequests, UpdateStatus, Fulfill, ListFulfillments |
-| `search_handler.go` | Search (donors with distance + button_state) |
-| `donor_status_handler.go` | GetStatus, UpdateStatus |
-| `leaderboard_handler.go` | National, Regional |
-| `event_handler.go` | List, Create |
-| `passport_handler.go` | GetMyPassport, GetByUsername, VerifyByQR, Request, Renew |
-| `claim_handler.go` | ListMy, Get, Create, Update, Cancel, Review (admin), ListPending (admin) |
-| `verification_handler.go` | GetMy, Submit, Review (admin), ListPending (admin) |
-| `timeline_handler.go` | GetMyTimeline, GetPublicTimeline |
-| `recognition_handler.go` | GetPortfolio, GetPublicPortfolio, Award CRUD (admin), Title Award (admin) |
-| `admin_handler.go` | GetStats, ListPendingClaims, GetClaimDetail, ListPendingVerifications |
-| `trust_handler.go` | GetOwn, GetPublic, Refresh |
-| `analytics_handler.go` | ByInstitution, ByCity, ByYear, ByMonth, AgeDistribution, TopDonors |
-
-## Services (6 files)
-
-| Service | Key Functions |
-|---|---|
-| `auth_service.go` | Register, Login, RefreshToken, Logout, VerifyEmail, ResendVerification, ForgotPassword, ResetPassword, ChangePassword |
-| `email_service.go` | Send (HTML via SMTP), SendVerificationEmail, SendPasswordResetEmail |
-| `donor_status_service.go` | EvaluateEligibility, UpdateStatus, GetSearchPriority |
-| `file_service.go` | Upload (S3/mock), GetPublicURL |
-| `trust_service.go` | Calculate (trust breakdown), GetStoredScore |
-| `whatsapp_service.go` | GenerateWhatsAppLink, DonorNotificationMessage, RequesterShareMessage |
-
-## Frontend Architecture
-
-```
-layout.tsx (Root Layout)
- ├─ AuthProvider (context)
- ├─ DesktopSidebar (md+)
- ├─ main > {children}
- ├─ BottomNav (mobile fixed)
- └─ Toaster (sonner)
-
-Pages (30 page.tsx in 27 routes):
- Public:       /, /login, /register, /forgot-password, /reset-password,
-              /verify-email, /privacy, /terms
- Authenticated: /search, /profile, /donor-history
- Requests:     /requests, /requests/new, /requests/share/[id]
- Phase 1:      /passport, /passport/verify/[token], /claims, /claims/new
- Phase 1b:     /verification, /timeline
- Phase 2:      /recognition
- Phase 3-4:    /admin, /admin/analytics, /admin/claims, /admin/verifications,
-              /admin/awards
- Events:      /events, /events/new
- Leaderboard: /leaderboard
- Public SSR:  /u/[username], /passport/verify/[token], /privacy, /terms
-```
+| `db.ts` | Lazy-init Proxy wrapping `@supabase/supabase-js` client. Uses `SUPABASE_SERVICE_KEY` (fallback `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). Auth disabled (`autoRefreshToken: false`, `persistSession: false`) |
+| `auth-middleware.ts` | `requireAuth()` verifies Bearer JWT via `jsonwebtoken`. Returns `AuthContext` or `NextResponse` (401). `checkVerifiedEmail()` returns 403 for unverified users on protected paths. `checkAdmin()` / `checkPMIOrAdmin()` for role gating |
+| `jwt.ts` | `generateAccessToken()` (15m default), `generateRefreshToken()` (7d), `verifyToken()`. Configurable via `JWT_SECRET`, `JWT_ACCESS_EXPIRY`, `JWT_REFRESH_EXPIRY` |
+| `password.ts` | `hashPassword()` / `checkPassword()` using bcryptjs with 12 salt rounds |
+| `eligibility.ts` | Rule engine: age (18–65), weight (≥50kg), donation interval (≥56 days). Returns `eligible`, `not_eligible`, `waiting_period`, `needs_clearance` |
+| `trust-score.ts` | Weighted calculation: donation count (30%), verification level (30%), claim accuracy (20%), profile completeness (10%), account age (10%) |
+| `file.ts` | `uploadFile()` → Vercel Blob `put()` (private), `deleteFile()`, `getFileUrl()` → proxy path |
+| `api.ts` | Client HTTP client. Auto-refreshes on 401, redirects on 403 "email not verified" |
+| `email.ts` | SMTP via nodemailer. HTML templates for verification + password reset |
+| `auth-context.tsx` | React Context wrapping app. Provides `user`, `loading`, `isAdmin`, `isUnverified`, `login()`, `register()`, `logout()`, `refreshUser()`. Tokens in localStorage |
 
 ## Auth Flow
 
 ```
-Registration:
-  1. POST /auth/register → { user, access_token, refresh_token }
-  2. Store tokens in localStorage
-  3. AuthProvider sets user state
+Register:
+  POST /api/v1/auth/register
+  → bcrypt(password) → INSERT users → generateAccessToken + generateRefreshToken
+  → { user, access_token, refresh_token }
 
 Login:
-  1. POST /auth/login → { user, access_token, refresh_token }
-  2. Same as registration steps 2-3
+  POST /api/v1/auth/login
+  → SELECT user → checkPassword → generateAccessToken + generateRefreshToken (SHA-256 hash in refresh_tokens)
+  → { user, access_token, refresh_token }
 
-Token Refresh (automatic in api.ts):
-  1. API call returns 401
-  2. api.ts POST /auth/refresh with refresh_token
-  3. Server validates hash, deletes old, issues new pair (rotation)
-  4. Retries original request with new access_token
-  5. If refresh fails → redirect to /login
-  6. If 403 "email not verified" → redirect to /verify-email
+Refresh:
+  POST /api/v1/auth/refresh
+  → SHA-256(refresh_token) → match in refresh_tokens → DELETE old → issue new pair (rotation)
+  → { user, access_token, refresh_token }
 
-Logout:
-  1. POST /auth/logout → deletes all refresh tokens for user
-  2. Clears localStorage
-  3. Sets user to null
-  4. Redirects to /
+Protected request:
+  api.ts → GET /api/v1/* (Authorization: Bearer <access_token>)
+  → requireAuth() → verifyToken(access_token) → if expired → 401
+  → api.ts catches 401 → attemptRefresh() → retry original request
+  → if refresh fails → localStorage.clear() → redirect /login
+
+Email verification:
+  POST /api/v1/auth/verify-email (token from verification_tokens)
+  → UPDATE users SET email_verified = true
 ```
+
+## Frontend Architecture
+
+```
+Root Layout (layout.tsx)
+  ├── AuthProvider (React Context)
+  ├── DesktopSidebar (md+ breakpoint, hidden mobile)
+  ├── <main> {children} </main>
+  ├── BottomNav (mobile fixed, md:hidden)
+  └── Toaster (sonner notifications)
+
+Pages (30 page.tsx, 31 routes):
+  Public (SSR):        /, /privacy, /terms
+  Public (client):     /login, /register, /forgot-password, /reset-password, /verify-email
+  Public SSR (data):   /u/[username], /passport/verify/[token]
+  Authenticated:       /search, /profile, /donor-history
+  Requests:            /requests, /requests/new, /requests/share/[id]
+  Passport:            /passport (merged from /recognition with 301)
+  Events:              /events, /events/new, /events/archive
+  Admin:               /admin, /admin/analytics, /admin/claims, /admin/verifications, /admin/awards
+  Other:               /leaderboard, /claims, /claims/new, /verification, /timeline, /recognition (301→/passport)
+```
+
+## Domains
+
+### Auth Domain
+- Routes: `auth/register`, `auth/login`, `auth/me`, `auth/logout`, `auth/refresh`, `auth/change-password`, `auth/resend-verification`, `auth/verify-email`, `auth/forgot-password`, `auth/reset-password`
+- Tables: `users`, `refresh_tokens`, `verification_tokens`
+- Auth: Custom JWT (jsonwebtoken), bcrypt (12 rounds), refresh token rotation (SHA-256 hash)
+
+### Donor Domain
+- Routes: `donors`, `donor-history`, `donor-history/[id]`, `donor-status`, `donor-verification`
+- Tables: `users`, `donor_histories`, `donor_verifications`
+- Rules: Eligibility engine (age/weight/interval), donation volume always 0.45L
+
+### Blood Request Domain
+- Routes: `requests`, `requests/mine`, `requests/[id]`, `requests/[id]/fulfill`, `requests/[id]/fulfillments`, `requests/[id]/status`
+- Tables: `blood_requests`, `request_fulfillments`
+- Flow: Create → Share (QR + WhatsApp) → Fulfill (auto-create pending history) → Close
+
+### Passport Domain
+- Routes: `passport`, `passport/[username]`, `passport/request`, `passport/renew`, `passport/verify/[token]`
+- Tables: `donor_passports`, `user_badges`, `user_titles`, `badges`
+- Format: `ADK-YYYY-NNNNNN`, QR token = 64-char hex
+
+### Claims & Verification Domain
+- Routes: `claims`, `claims/[id]`, `trust-score`, `trust-score/refresh`, `trust-score/[username]`, `recognition`, `recognition/[username]`
+- Tables: `donation_claims`, `award_configs`, `user_titles`
+
+### Event Discovery Domain
+- Routes: `events`, `events/discover`, `events/archive`, `events/sources`
+- Tables: `events`, `event_organizers`, `event_sources`
+- Scrapers: AyoDonor PMI Nasional, PMI Bali, PMI Batam, PMI Bandung, PMI Malang, PMI Semarang
+- Flow: Cron/Manual trigger → Load sources → Run scrapers → Validate → Deduplicate → Insert → Archive expired
+
+### Admin Domain
+- Routes: `admin/stats`, `admin/users`, `admin/users/[id]/role`, `admin/verifications`, `admin/verifications/[id]/review`, `admin/claims`, `admin/claims/[id]`, `admin/claims/[id]/review`, `admin/awards`, `admin/awards/[id]`, `admin/titles`, `admin/analytics/*` (6 endpoints)
+- Access: `super_admin` or `pmi_admin` role
 
 ## External Integrations
 
-| Integration | Status | Details |
+| Integration | Status | Usage |
 |---|---|---|
-| WhatsApp (wa.me) | Implemented | `whatsapp_service.go` generates wa.me links with pre-filled message templates |
-| MinIO / S3 | Implemented | `file_service.go`: S3-compatible driver with mock fallback (returns fake URL if S3 env not set) |
-| QR Code (api.qrserver.com) | Implemented | External API used in share card, passport, and recognition pages (no local QR library) |
-| Redis | Declared only | In docker-compose.yml + config, but zero usage in code |
-| OpenStreetMap + Leaflet | Declared only | Not integrated in any frontend component |
-| PMI Integration | Implemented (Phase 3) | PMI review portal — claims, verifications, analytics |
+| Supabase (Cloud PG) | Active | All data storage, query via JS client |
+| Vercel Blob | Active | Private file storage (proof photos, avatars) |
+| QR Server (api.qrserver.com) | Active | Generate QR codes for passport + share cards |
+| WhatsApp (wa.me) | Active | Share blood request via WhatsApp link |
+| SMTP (Brevo) | Active | Verification emails, password reset |
+| Redis | Declared only | In docker-compose, zero code usage |
+
+## Infrastructure
+
+```
+Local Dev:
+  docker compose up -d postgres redis
+  npm run dev          → localhost:3000
+
+Production (Vercel):
+  npm run build         → .next/standalone
+  Vercel deploys from git
+  Supabase Cloud PG     → remote DB
+  Vercel Blob           → file storage
+  Vercel Cron           → POST /api/v1/events/discover (every 6h)
+
+CI (GitHub Actions):
+  push/PR to main → ubuntu-latest, node 22, npm ci, npm run build
+
+Docker Compose:
+  3 services: postgres (16-alpine), redis (7-alpine), frontend (node:22-alpine)
+  Frontend: multi-stage build, standalone output, port 3000
+```
