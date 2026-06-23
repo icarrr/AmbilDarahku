@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { GlassCard } from "@/components/glass-card";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, MapPin, Clock, Phone, Users, Plus } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Users, Plus } from "lucide-react";
 
 type Event = {
   id: string;
@@ -21,12 +21,16 @@ type Event = {
   contact_phone?: string;
   quota: number;
   status: string;
+  poster_url?: string | null;
 };
 
 export default function EventsPage() {
   const { isAdmin } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"upcoming" | "all" | "past">("upcoming");
+  const [visible, setVisible] = useState(12);
+  const PAGE_STEP = 12;
 
   useEffect(() => {
     api.get<{ events: Event[] }>("/events")
@@ -40,8 +44,21 @@ export default function EventsPage() {
     return date.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
   };
 
+  const FALLBACK_EVENT_PATH = "events/Gemini_Generated_Image_295p3i295p3i295p.jpg";
+
+  const eventImgUrl = (event: Event): string => {
+    if (event.poster_url) return `/api/v1/files?url=${encodeURIComponent(event.poster_url)}`;
+    return `/api/v1/files?url=${encodeURIComponent(FALLBACK_EVENT_PATH)}`;
+  };
+
   const day = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric" });
   const month = (d: string) => new Date(d).toLocaleDateString("id-ID", { month: "short" }).toUpperCase();
+
+  const filteredEvents = events.filter(e => {
+    if (filter === "all") return true;
+    if (filter === "upcoming") return e.status === "upcoming" || e.status === "ongoing";
+    return e.status === "completed";
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-6">
@@ -61,6 +78,19 @@ export default function EventsPage() {
         )}
       </div>
 
+      <div className="mb-4 flex gap-2">
+        {(["upcoming", "past", "all"] as const).map(opt => (
+          <Button
+            key={opt}
+            variant={filter === opt ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilter(opt); setVisible(PAGE_STEP); }}
+          >
+            {opt === "upcoming" ? "Akan Datang" : opt === "all" ? "Semua" : "Selesai"}
+          </Button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
@@ -71,10 +101,14 @@ export default function EventsPage() {
             </GlassCard>
           ))}
         </div>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <GlassCard className="py-12 text-center animate-fade-in">
           <CalendarDays className="mx-auto h-12 w-12 text-gray-200" />
-          <p className="mt-2 font-medium text-foreground">Belum ada event donor darah</p>
+          <p className="mt-2 font-medium text-foreground">
+            {filter === "upcoming" ? "Belum ada event yang akan datang" :
+             filter === "past" ? "Belum ada event yang selesai" :
+             "Belum ada event donor darah"}
+          </p>
           <p className="text-xs text-muted-foreground">Pantau terus untuk event terbaru</p>
           {isAdmin && (
             <Link href="/events/new">
@@ -83,9 +117,19 @@ export default function EventsPage() {
           )}
         </GlassCard>
       ) : (
+        <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((event, i) => (
-            <GlassCard key={event.id} elevated className={`flex flex-col animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
+          {filteredEvents.slice(0, visible).map((event, i) => {
+            const imgUrl = eventImgUrl(event);
+            return (
+            <GlassCard
+              key={event.id}
+              elevated
+              className={`flex flex-col animate-slide-up stagger-${Math.min(i + 1, 6)} ${imgUrl ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+              onClick={imgUrl ? () => window.open(imgUrl, "_blank", "noopener,noreferrer") : undefined}
+              role={imgUrl ? "button" : undefined}
+              tabIndex={imgUrl ? 0 : undefined}
+            >
               <div className="flex items-start gap-4">
                 <div className="flex flex-col items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-center min-w-[56px]">
                   <span className="text-xs font-bold text-red-600">{day(event.event_date)}</span>
@@ -114,29 +158,18 @@ export default function EventsPage() {
               {event.description && (
                 <p className="mt-3 text-xs text-[#94a3b8] line-clamp-2">{event.description}</p>
               )}
-              <div className="mt-auto pt-3 flex items-center justify-between border-t border-gray-100">
-                <span className="text-xs text-[#94a3b8]">
-                  Kuota: {event.quota} pendonor
-                </span>
-                {event.contact_phone ? (
-                  <a
-                    href={`https://wa.me/${event.contact_phone}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-                  >
-                    <Phone className="h-3 w-3" />
-                    Daftar
-                  </a>
-                ) : (
-                  <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-400">
-                    Daftar
-                  </span>
-                )}
-              </div>
             </GlassCard>
-          ))}
+            );
+          })}
         </div>
+        {visible < filteredEvents.length && (
+          <div className="mt-6 text-center">
+            <Button variant="outline" onClick={() => setVisible(v => v + PAGE_STEP)}>
+              Lihat Lebih Banyak ({filteredEvents.length - visible} tersisa)
+            </Button>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

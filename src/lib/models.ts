@@ -144,7 +144,7 @@ export interface Event {
   organizer: string;
   contact_phone: string;
   quota: number;
-  banner_url: string | null;
+  poster_url: string | null;
   status: string;
   created_at: string;
   updated_at: string;

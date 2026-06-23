@@ -8,7 +8,6 @@ export async function GET() {
   const { data: events } = await supabase
     .from("events")
     .select("*")
-    .in("status", ["upcoming", "ongoing"])
     .order("event_date", { ascending: true });
 
   return NextResponse.json({ events: events || [] });
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, location, city, event_date, start_time, end_time, description, organizer, contact_phone, quota, banner_url } = body;
+    const { title, location, city, event_date, start_time, end_time, description, organizer, contact_phone, quota, poster_url } = body;
 
     if (!title || !location || !city || !event_date || !start_time || !end_time) {
       return NextResponse.json({ error: "required fields missing" }, { status: 400 });
@@ -40,7 +39,7 @@ export async function POST(request: NextRequest) {
         organizer: organizer || "",
         contact_phone: contact_phone || "",
         quota: quota || 0,
-        banner_url: banner_url || null,
+        poster_url: poster_url || null,
       })
       .select("*");
 

@@ -13,6 +13,8 @@ export interface ScrapedEvent {
   sourceType: string;
   sourceId?: string;
   organizerId?: string;
+  rawData?: Record<string, any>;
+  posterUrl?: string;
 }
 
 export interface SourceConfig {

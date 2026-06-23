@@ -116,6 +116,12 @@ CREATE INDEX IF NOT EXISTS idx_blood_requests_blood_type ON blood_requests(blood
 CREATE INDEX IF NOT EXISTS idx_blood_requests_urgency ON blood_requests(urgency);
 CREATE INDEX IF NOT EXISTS idx_blood_requests_status ON blood_requests(status);
 
+ALTER TABLE blood_requests ALTER COLUMN requester_id DROP NOT NULL;
+ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS source_request_id VARCHAR;
+ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS source_type VARCHAR DEFAULT 'ambildarahku_users';
+ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS raw_data JSONB;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blood_requests_source ON blood_requests(source_type, source_request_id) WHERE source_request_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS request_fulfillments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   request_id UUID NOT NULL REFERENCES blood_requests(id) ON DELETE CASCADE,
@@ -180,7 +186,6 @@ CREATE TABLE IF NOT EXISTS events (
   organizer VARCHAR(255),
   contact_phone VARCHAR(20),
   quota INT NOT NULL DEFAULT 0,
-  banner_url TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'upcoming',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -197,22 +202,12 @@ ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS source_id VARCHAR(255);
 ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false;
 ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS raw_data JSONB;
+ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS poster_url TEXT;
+ALTER TABLE IF EXISTS events DROP COLUMN IF EXISTS banner_url;
+ALTER TABLE IF EXISTS events DROP COLUMN IF EXISTS organizer_id;
+DROP TABLE IF EXISTS event_organizers;
 CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_dedup ON events(source_type, source_id) WHERE source_id IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS event_organizers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  website_url TEXT,
-  contact_phone VARCHAR(20),
-  city VARCHAR(100),
-  province VARCHAR(100),
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  trust_score INT NOT NULL DEFAULT 50,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 CREATE TABLE IF NOT EXISTS event_sources (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -231,9 +226,7 @@ CREATE TABLE IF NOT EXISTS event_sources (
 
 CREATE INDEX IF NOT EXISTS idx_event_sources_type ON event_sources(source_type);
 CREATE INDEX IF NOT EXISTS idx_event_sources_active ON event_sources(is_active);
-
-ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS organizer_id UUID REFERENCES event_organizers(id);
-CREATE INDEX IF NOT EXISTS idx_events_organizer ON events(organizer_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_sources_url ON event_sources(source_url);
 
 CREATE TABLE IF NOT EXISTS donor_passports (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

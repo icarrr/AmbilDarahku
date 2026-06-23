@@ -16,6 +16,7 @@ type Event = {
   start_time: string;
   end_time: string;
   organizer?: string;
+  poster_url?: string | null;
 };
 
 export default function ArchivePage() {
@@ -41,6 +42,13 @@ export default function ArchivePage() {
       })
       .finally(() => setLoading(false));
   }, [page, cityFilter]);
+
+  const FALLBACK_EVENT_PATH = "events/Gemini_Generated_Image_295p3i295p3i295p.jpg";
+
+  const eventImgUrl = (event: Event): string => {
+    if (event.poster_url) return `/api/v1/files?url=${encodeURIComponent(event.poster_url)}`;
+    return `/api/v1/files?url=${encodeURIComponent(FALLBACK_EVENT_PATH)}`;
+  };
 
   const formatDate = (d: string) => {
     return new Date(d).toLocaleDateString("id-ID", {
@@ -94,8 +102,17 @@ export default function ArchivePage() {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <GlassCard key={event.id} elevated className="flex flex-col opacity-80">
+            {events.map((event) => {
+              const imgUrl = eventImgUrl(event);
+              return (
+              <GlassCard
+                key={event.id}
+                elevated
+                className={`flex flex-col opacity-80 ${imgUrl ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+                onClick={imgUrl ? () => window.open(imgUrl, "_blank", "noopener,noreferrer") : undefined}
+                role={imgUrl ? "button" : undefined}
+                tabIndex={imgUrl ? 0 : undefined}
+              >
                 <div className="flex items-start gap-4">
                   <div className="flex flex-col items-center justify-center rounded-lg bg-gray-100 px-3 py-2 text-center min-w-[56px]">
                     <span className="text-xs font-bold text-gray-500">
@@ -123,7 +140,8 @@ export default function ArchivePage() {
                   <p className="mt-3 text-xs text-[#94a3b8] line-clamp-2">{event.description}</p>
                 )}
               </GlassCard>
-            ))}
+            );
+          })}
           </div>
 
           {totalPages > 1 && (

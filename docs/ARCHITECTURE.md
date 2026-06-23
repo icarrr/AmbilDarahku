@@ -2,40 +2,27 @@
 
 ## High-Level Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Browser (Client)                      │
-│  Next.js App: AuthProvider → Page → api.ts → HTTP       │
-└────────────────────┬────────────────────────────────────┘
-                     │  Bearer JWT (localStorage)
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│              Next.js Server (Node.js)                    │
-│                                                          │
-│  /api/v1/*  route.ts files                              │
-│    ├─ auth-middleware.ts (JWT verify)                    │
-│    ├─ requireAuth → isAuthContext → handler              │
-│    ├─ checkVerifiedEmail / checkAdmin / checkPMIOrAdmin  │
-│    └─ handler → supabase.from().select()                 │
-│                                                          │
-│  Pages (SSR/SSG/Client)                                  │
-│    ├─ layout.tsx (Root: AuthProvider + Nav + Toaster)    │
-│    ├─ page.tsx (landing, SSR public pages)               │
-│    └─ "use client" pages (authenticated)                 │
-└──────────┬──────────────┬───────────────────────────────┘
-           │              │
-           ▼              ▼
-┌──────────────────┐  ┌──────────────────┐
-│   Supabase API    │  │   Vercel Blob    │
-│   (Cloud PG)      │  │   (File Storage) │
-│                   │  │                  │
-│   Tables:         │  │  uploads/*       │
-│   users,          │  │  (private)       │
-│   donor_histories,│  │                  │
-│   blood_requests, │  │  Proxied via     │
-│   badges,         │  │  /api/v1/files   │
-│   events, ...     │  │                  │
-└──────────────────┘  └──────────────────┘
+```mermaid
+flowchart TB
+    Client["Browser (Next.js App)"]
+    subgraph Server["Next.js Server (Node.js)"]
+        API["/api/v1/* route.ts"]
+        Auth["auth-middleware.ts<br/>JWT verify"]
+        Pages["Pages (SSR/Client)"]
+    end
+    subgraph External["External"]
+        Supabase[("Supabase Cloud PG")]
+        VercelBlob[("Vercel Blob Storage")]
+        KawanSedarah["Kawan Sedarah<br/>Supabase REST API"]
+        PMISites["PMI Websites"]
+    end
+    Client -->|"Bearer JWT<br/>(localStorage)"| API
+    Client --> Pages
+    API --> Auth
+    API -->|"supabase.from()"| Supabase
+    API -->|"put() / get()"| VercelBlob
+    API -->|"axios.get()"| KawanSedarah
+    API -->|"axios + cheerio"| PMISites
 ```
 
 ## Application Architecture
@@ -51,7 +38,7 @@ Request → requireAuth() → checkVerifiedEmail() → handler()
                                               .maybeSingle()
 ```
 
-No service/repository layers — handlers query Supabase directly. Auth logic extracted to `auth-middleware.ts`.
+No service/repository layers — handlers query Supabase directly. Auth logic extracted to `auth-middleware.ts`. Discovery runners use `pg` Pool directly (DDL needs raw PostgreSQL).
 
 ### Key Library Modules
 
@@ -67,6 +54,8 @@ No service/repository layers — handlers query Supabase directly. Auth logic ex
 | `api.ts` | Client HTTP client. Auto-refreshes on 401, redirects on 403 "email not verified" |
 | `email.ts` | SMTP via nodemailer. HTML templates for verification + password reset |
 | `auth-context.tsx` | React Context wrapping app. Provides `user`, `loading`, `isAdmin`, `isUnverified`, `login()`, `register()`, `logout()`, `refreshUser()`. Tokens in localStorage |
+| `event-discovery/runner.ts` | `discoverEvents()` — orchestrates fetching from 7 sources, dedup, image download, insert |
+| `blood-request-discovery/runner.ts` | `discoverBloodRequests()` — fetches from external Supabase REST API, maps fields, upserts |
 
 ## Auth Flow
 
@@ -107,13 +96,13 @@ Root Layout (layout.tsx)
   ├── BottomNav (mobile fixed, md:hidden)
   └── Toaster (sonner notifications)
 
-Pages (30 page.tsx, 31 routes):
+Pages (31 page.tsx):
   Public (SSR):        /, /privacy, /terms
   Public (client):     /login, /register, /forgot-password, /reset-password, /verify-email
   Public SSR (data):   /u/[username], /passport/verify/[token]
   Authenticated:       /search, /profile, /donor-history
   Requests:            /requests, /requests/new, /requests/share/[id]
-  Passport:            /passport (merged from /recognition with 301)
+  Passport:            /passport
   Events:              /events, /events/new, /events/archive
   Admin:               /admin, /admin/analytics, /admin/claims, /admin/verifications, /admin/awards
   Other:               /leaderboard, /claims, /claims/new, /verification, /timeline, /recognition (301→/passport)
@@ -124,32 +113,40 @@ Pages (30 page.tsx, 31 routes):
 ### Auth Domain
 - Routes: `auth/register`, `auth/login`, `auth/me`, `auth/logout`, `auth/refresh`, `auth/change-password`, `auth/resend-verification`, `auth/verify-email`, `auth/forgot-password`, `auth/reset-password`
 - Tables: `users`, `refresh_tokens`, `verification_tokens`
-- Auth: Custom JWT (jsonwebtoken), bcrypt (12 rounds), refresh token rotation (SHA-256 hash)
 
 ### Donor Domain
 - Routes: `donors`, `donor-history`, `donor-history/[id]`, `donor-status`, `donor-verification`
 - Tables: `users`, `donor_histories`, `donor_verifications`
-- Rules: Eligibility engine (age/weight/interval), donation volume always 0.45L
 
 ### Blood Request Domain
 - Routes: `requests`, `requests/mine`, `requests/[id]`, `requests/[id]/fulfill`, `requests/[id]/fulfillments`, `requests/[id]/status`
 - Tables: `blood_requests`, `request_fulfillments`
-- Flow: Create → Share (QR + WhatsApp) → Fulfill (auto-create pending history) → Close
+
+### Blood Request Discovery Domain
+- Routes: `blood-requests/discover`
+- Source: External Supabase REST API (Kawan Sedarah)
+- Flow: Hourly cron → check table count → full seed (if empty) or incremental (`status != Selesai`) → field mapping → upsert via `ON CONFLICT (source_type, source_request_id) DO UPDATE`
+- Status guard: local `fulfilled` status never downgraded by API
+- Phone normalization: `08xx` → `628xx`, strips dashes/spaces
+- `requester_id` set to admin user ID for scraped records
+
+### Event Discovery Domain
+- Routes: `events`, `events/discover`, `events/archive`, `events/sources`
+- Tables: `events`, `event_sources`
+- Sources (7): AyoDonor PMI, PMI Bali, 4 PMI cities, REST API (Kawan Sedarah)
+- Flow: Cron/Manual → seed sources → scrape each (concurrent 5) → dedup → download images → insert → archive expired → backfill missing posters
+- Image pipeline: download `image_url` → `put()` to Vercel Blob with original filename → store blob path in `poster_url`
+- Dedup: `(source_type, source_id)` unique index, `ON CONFLICT DO NOTHING`
+- Fallback image: Gemini image when no `poster_url` exists
 
 ### Passport Domain
 - Routes: `passport`, `passport/[username]`, `passport/request`, `passport/renew`, `passport/verify/[token]`
 - Tables: `donor_passports`, `user_badges`, `user_titles`, `badges`
-- Format: `ADK-YYYY-NNNNNN`, QR token = 64-char hex
+- Format: `ADK-YYYY-NNNNNN`
 
 ### Claims & Verification Domain
 - Routes: `claims`, `claims/[id]`, `trust-score`, `trust-score/refresh`, `trust-score/[username]`, `recognition`, `recognition/[username]`
 - Tables: `donation_claims`, `award_configs`, `user_titles`
-
-### Event Discovery Domain
-- Routes: `events`, `events/discover`, `events/archive`, `events/sources`
-- Tables: `events`, `event_organizers`, `event_sources`
-- Scrapers: AyoDonor PMI Nasional, PMI Bali, PMI Batam, PMI Bandung, PMI Malang, PMI Semarang
-- Flow: Cron/Manual trigger → Load sources → Run scrapers → Validate → Deduplicate → Insert → Archive expired
 
 ### Admin Domain
 - Routes: `admin/stats`, `admin/users`, `admin/users/[id]/role`, `admin/verifications`, `admin/verifications/[id]/review`, `admin/claims`, `admin/claims/[id]`, `admin/claims/[id]/review`, `admin/awards`, `admin/awards/[id]`, `admin/titles`, `admin/analytics/*` (6 endpoints)
@@ -160,7 +157,8 @@ Pages (30 page.tsx, 31 routes):
 | Integration | Status | Usage |
 |---|---|---|
 | Supabase (Cloud PG) | Active | All data storage, query via JS client |
-| Vercel Blob | Active | Private file storage (proof photos, avatars) |
+| Vercel Blob | Active | Private file storage, event poster images |
+| Kawan Sedarah (Supabase REST) | Active | Scrape events + blood requests from external Supabase instance |
 | QR Server (api.qrserver.com) | Active | Generate QR codes for passport + share cards |
 | WhatsApp (wa.me) | Active | Share blood request via WhatsApp link |
 | SMTP (Brevo) | Active | Verification emails, password reset |
@@ -168,22 +166,36 @@ Pages (30 page.tsx, 31 routes):
 
 ## Infrastructure
 
+```mermaid
+flowchart LR
+    subgraph Local["Local Dev"]
+        PG[("Postgres 16<br/>(Docker)")]
+        Dev["npm run dev<br/>:3000"]
+    end
+    subgraph Production["Vercel"]
+        Prod["Next.js Standalone"]
+        Cron3h["Cron 3h<br/>events/discover"]
+        Cron1h["Cron 1h<br/>blood-requests/discover"]
+    end
+    subgraph Cloud["Cloud Services"]
+        Blob[("Vercel Blob")]
+        Supa[("Supabase Cloud PG")]
+    end
+    Dev --> PG
+    Prod --> Supa
+    Prod --> Blob
+    Cron3h --> Prod
+    Cron1h --> Prod
 ```
-Local Dev:
-  docker compose up -d postgres redis
-  npm run dev          → localhost:3000
 
-Production (Vercel):
-  npm run build         → .next/standalone
-  Vercel deploys from git
-  Supabase Cloud PG     → remote DB
-  Vercel Blob           → file storage
-  Vercel Cron           → POST /api/v1/events/discover (every 6h)
+### Cron Schedules
 
-CI (GitHub Actions):
-  push/PR to main → ubuntu-latest, node 22, npm ci, npm run build
+| Route | Schedule | Function |
+|---|---|---|
+| `POST /api/v1/events/discover` | `0 */3 * * *` (every 3h) | Scrape event sources, download posters |
+| `POST /api/v1/blood-requests/discover` | `0 * * * *` (every 1h) | Upsert blood requests from external API |
 
-Docker Compose:
-  3 services: postgres (16-alpine), redis (7-alpine), frontend (node:22-alpine)
-  Frontend: multi-stage build, standalone output, port 3000
-```
+### Docker Compose
+3 services: `postgres:16-alpine`, `redis:7-alpine` (unused), `frontend` (node:22-alpine, standalone output, port 3000).
+
+No K8s, no staging environment declared.

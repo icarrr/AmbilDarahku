@@ -4,9 +4,12 @@ interface GlassCardProps {
   children: React.ReactNode;
   className?: string;
   elevated?: boolean;
+  onClick?: () => void;
+  role?: string;
+  tabIndex?: number;
 }
 
-export function GlassCard({ children, className, elevated }: GlassCardProps) {
+export function GlassCard({ children, className, elevated, onClick, role, tabIndex }: GlassCardProps) {
   return (
     <div
       className={cn(
@@ -14,6 +17,10 @@ export function GlassCard({ children, className, elevated }: GlassCardProps) {
         elevated ? "glass-card-elevated" : "glass-card",
         className,
       )}
+      onClick={onClick}
+      role={role}
+      tabIndex={tabIndex}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
     >
       {children}
     </div>

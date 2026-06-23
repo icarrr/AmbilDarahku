@@ -68,4 +68,12 @@ export const SEED_SOURCES: SeedSource[] = [
     detection_keywords: null,
     scrape_frequency_minutes: 720,
   },
+  {
+    source_type: "rest_api",
+    source_name: "Sumber Event Nasional",
+    source_url: "https://vrumbtsfrqvnmdpezlot.supabase.co/rest/v1/events?select=*&order=event_date.desc",
+    scraper_config: {},
+    detection_keywords: null,
+    scrape_frequency_minutes: 360,
+  },
 ];

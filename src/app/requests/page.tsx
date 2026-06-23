@@ -23,6 +23,7 @@ type BloodRequest = {
   contact_phone?: string;
   notes?: string;
   created_at: string;
+  status?: string;
 };
 
 export default function RequestsPage() {
@@ -38,6 +39,19 @@ export default function RequestsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [isUnverified, router]);
+
+  const [statusFilter, setStatusFilter] = useState<"open" | "all">("open");
+  const [search, setSearch] = useState("");
+  const [hospitalFilter, setHospitalFilter] = useState("");
+
+  const hospitals = [...new Set(requests.map(r => r.hospital).filter(Boolean))].sort();
+
+  const filtered = requests.filter(r => {
+    if (statusFilter === "open" && r.status === "fulfilled") return false;
+    if (search && !r.patient_name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (hospitalFilter && r.hospital !== hospitalFilter) return false;
+    return true;
+  });
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -62,22 +76,47 @@ export default function RequestsPage() {
         </Button>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Cari nama pasien..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:max-w-xs"
+        />
+        <select
+          value={hospitalFilter}
+          onChange={e => setHospitalFilter(e.target.value)}
+          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
+        >
+          <option value="">Semua RS</option>
+          {hospitals.map(h => <option key={h} value={h}>{h}</option>)}
+        </select>
+        <Button
+          variant={statusFilter === "open" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter(statusFilter === "open" ? "all" : "open")}
+        >
+          {statusFilter === "open" ? "Aktif" : "Semua Status"}
+        </Button>
+      </div>
+
       {loading ? (
         <div className="space-y-3">
           {[1,2,3].map(i => <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}><SkeletonCard /></div>)}
         </div>
-      ) : requests.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="py-16 text-center animate-fade-in">
           <AlertTriangle className="mx-auto h-12 w-12 text-gray-200" />
-          <p className="mt-3 font-medium text-foreground">Belum ada permintaan darah</p>
-          <p className="text-sm text-muted-foreground">Saat ini semua permintaan telah terpenuhi</p>
+          <p className="mt-3 font-medium text-foreground">Tidak ada permintaan</p>
+          <p className="text-sm text-muted-foreground">Coba ubah filter atau buat permintaan baru</p>
           <Button variant="outline" className="mt-4" onClick={() => router.push("/requests/new")}>
             <Plus className="h-4 w-4 mr-1" /> Buat Permintaan
           </Button>
         </div>
       ) : (
         <div className="space-y-3">
-          {requests.map((req, i) => (
+          {filtered.map((req, i) => (
             <div key={req.id} onClick={() => router.push(`/requests/share/${req.id}`)} className={`cursor-pointer animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <GlassCard>
                 <div className="flex items-start justify-between gap-3">
@@ -103,7 +142,7 @@ export default function RequestsPage() {
                           <Clock className="h-3 w-3" />
                           {timeAgo(req.created_at)}
                         </span>
-                        <span>{req.bags - (req.fulfilled_bags || 0)}/{req.bags} kantong</span>
+                        <span>{req.fulfilled_bags || 0}/{req.bags} &middot; {req.bags - (req.fulfilled_bags || 0)} sisa</span>
                       </div>
                       {req.contact_phone && (
                         <a
@@ -127,8 +166,11 @@ export default function RequestsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 flex flex-col gap-1 items-end">
                     <UrgencyBadge level={req.urgency} />
+                    {req.status === "fulfilled" && (
+                      <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Selesai</span>
+                    )}
                   </div>
                 </div>
               </GlassCard>

@@ -48,7 +48,7 @@ export default function NewEventPage() {
         ...form,
         event_date: new Date(form.event_date).toISOString(),
         quota: Number(form.quota),
-        banner_url: bannerUrl || undefined,
+        poster_url: bannerUrl || undefined,
       });
       toast.success("Event berhasil dibuat");
       router.push("/events");

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const urgency = url.searchParams.get("urgency");
   const limit = parseInt(url.searchParams.get("limit") || "50");
 
-  let query = supabase.from("blood_requests").select("*").eq("status", "open");
+  let query = supabase.from("blood_requests").select("*");
 
   if (bloodType) query = query.eq("blood_type", bloodType);
   if (urgency) query = query.eq("urgency", urgency);

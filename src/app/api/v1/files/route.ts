@@ -4,12 +4,20 @@ import { get } from "@vercel/blob";
 export const runtime = "nodejs";
 
 const BLOB_STORE_DOMAIN = "private.blob.vercel-storage.com";
+const BLOB_BASE = "https://8kbpkasoncfiacua.private.blob.vercel-storage.com";
+
+function resolveUrl(raw: string): string {
+  if (raw.startsWith("http")) return raw;
+  return `${BLOB_BASE}/${raw.replace(/^\//, "")}`;
+}
 
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl.searchParams.get("url");
-  if (!url) {
+  const raw = request.nextUrl.searchParams.get("url");
+  if (!raw) {
     return NextResponse.json({ error: "Missing url parameter" }, { status: 400 });
   }
+
+  const url = resolveUrl(raw);
 
   try {
     const parsed = new URL(url);
