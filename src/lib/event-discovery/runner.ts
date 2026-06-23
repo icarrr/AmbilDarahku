@@ -181,7 +181,7 @@ async function downloadEventImages(events: ScrapedEvent[]) {
         // Preserve original filename so repeated scrapes overwrite same blob key
         const originalName = url.split("/").filter(Boolean).pop() || `image.${contentType.includes("png") ? "png" : "webp"}`;
         const path = `events/${originalName}`;
-        await put(path, buffer, { access: "private", contentType });
+        await put(path, buffer, { access: "private", contentType, allowOverwrite: true });
         e.posterUrl = path;
       } catch (imgErr: any) {
         console.warn(`  Failed to download image for "${e.title}": ${imgErr.message}`);
@@ -212,7 +212,7 @@ async function backfillMissingPosters(pool: Pool) {
         const originalName = url.split("/").filter(Boolean).pop() || `image.${contentType.includes("png") ? "png" : "webp"}`;
         const path = `events/${originalName}`;
 
-        await put(path, buffer, { access: "private", contentType });
+        await put(path, buffer, { access: "private", contentType, allowOverwrite: true });
         await pool.query("UPDATE events SET poster_url = $1 WHERE id = $2", [path, row.id]);
       } catch (err: any) {
         console.warn(`  Failed to backfill poster for event ${row.id}: ${err.message}`);
