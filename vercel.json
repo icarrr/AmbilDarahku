@@ -1,11 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/v1/events/discover",
-      "schedule": "0 */3 * * *"
-    },
-    {
-      "path": "/api/v1/blood-requests/discover",
+      "path": "/api/v1/discover",
       "schedule": "0 * * * *"
     }
   ]

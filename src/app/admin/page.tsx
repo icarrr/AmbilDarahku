@@ -73,9 +73,10 @@ export default function AdminPage() {
     setScrapeResult(null);
     setScrapeError(null);
     try {
-      const data = await api.post<any>("/events/discover");
-      setScrapeResult(data);
-      toast.success(`Scrape selesai: ${data.totalNew} event baru dari ${data.totalScraped}`);
+      const data = await api.post<any>("/discover");
+      setScrapeResult(data.events);
+      setBrResult(data.bloodRequests);
+      toast.success(`Event: ${data.events.totalNew} baru · Darah: ${data.bloodRequests.total} permintaan, ${data.bloodRequests.affected} diproses`);
     } catch (err: any) {
       const msg = err.message || "Gagal menjalankan scrape";
       setScrapeError(msg);
@@ -85,26 +86,7 @@ export default function AdminPage() {
     }
   };
 
-  const [brScraping, setBrScraping] = useState(false);
   const [brResult, setBrResult] = useState<{ total: number; affected: number; errors: number; durationMs: number } | null>(null);
-  const [brError, setBrError] = useState<string | null>(null);
-
-  const handleBrScrape = async () => {
-    setBrScraping(true);
-    setBrResult(null);
-    setBrError(null);
-    try {
-      const data = await api.post<any>("/blood-requests/discover");
-      setBrResult(data);
-      toast.success(`Scrape darah selesai: ${data.total} permintaan, ${data.affected} diproses`);
-    } catch (err: any) {
-      const msg = err.message || "Gagal menjalankan scrape darah";
-      setBrError(msg);
-      toast.error(msg);
-    } finally {
-      setBrScraping(false);
-    }
-  };
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -227,10 +209,10 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
-                Event Discovery
+                Scrape Semua
               </CardTitle>
               <CardDescription>
-                Scrape event donor darah dari sumber eksternal. Berjalan otomatis tiap 3 jam.
+                Scrape event donor darah + permintaan darah dari sumber eksternal. Berjalan otomatis tiap jam.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -240,71 +222,43 @@ export default function AdminPage() {
                 </Button>
                 {scraping && (
                   <span className="text-sm text-gray-500 animate-pulse">
-                    Mengumpulkan event...
+                    Mengumpulkan data...
                   </span>
                 )}
               </div>
               {scrapeResult && !scraping && (
-                <div className="text-sm space-y-1">
+                <div className="text-sm space-y-2">
                   <p className="text-green-600 font-medium">
-                    ✓ {scrapeResult.totalScraped} event ditemukan, {scrapeResult.totalNew} baru
-                    {scrapeResult.totalErrors > 0 && (
-                      <span className="text-red-500">, {scrapeResult.totalErrors} error</span>
-                    )}
+                    ✓ Event: {scrapeResult.totalScraped} ditemukan, {scrapeResult.totalNew} baru
+                    {scrapeResult.totalErrors > 0 && <span className="text-red-500">, {scrapeResult.totalErrors} error</span>}
                   </p>
-                  {scrapeResult.sources.map((s, i) => (
-                    <p key={i} className="pl-4 text-xs text-gray-600">
-                      {s.error ? (
-                        <span className="text-red-500">✗ {s.name}: {s.error}</span>
-                      ) : (
-                        <span>{s.name}: {s.found} event ({s.new} baru)</span>
-                      )}
-                    </p>
-                  ))}
-                  {scrapeResult.archivedCount > 0 && (
-                    <p className="text-amber-600 text-xs">🗄 {scrapeResult.archivedCount} event lama diarsipkan</p>
+                  <div className="pl-4 space-y-1">
+                    {scrapeResult.sources.map((s, i) => (
+                      <p key={i} className="text-xs text-gray-600">
+                        {s.error ? (
+                          <span className="text-red-500">✗ {s.name}: {s.error}</span>
+                        ) : (
+                          <span>{s.name}: {s.found} event ({s.new} baru)</span>
+                        )}
+                      </p>
+                    ))}
+                    {scrapeResult.archivedCount > 0 && (
+                      <p className="text-amber-600 text-xs">🗄 {scrapeResult.archivedCount} event lama diarsipkan</p>
+                    )}
+                  </div>
+                  {brResult && (
+                    <>
+                      <p className="text-green-600 font-medium">
+                        ✓ Darah: {brResult.affected} permintaan diproses dari {brResult.total}
+                        {brResult.errors > 0 && <span className="text-red-500">, {brResult.errors} error</span>}
+                      </p>
+                    </>
                   )}
-                  <p className="text-gray-400 text-xs">⏱ {(scrapeResult.durationMs / 1000).toFixed(1)}s</p>
+                  <p className="text-gray-400 text-xs">⏱ Event {(scrapeResult.durationMs / 1000).toFixed(1)}s{brResult ? ` · Darah ${(brResult.durationMs / 1000).toFixed(1)}s` : ""}</p>
                 </div>
               )}
               {scrapeError && !scraping && (
                 <p className="text-sm text-red-600">{scrapeError}</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Scrape Permintaan Darah
-              </CardTitle>
-              <CardDescription>
-                Scrape permintaan darah dari sumber eksternal. Berjalan otomatis tiap 1 jam.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4 mb-3">
-                <Button onClick={handleBrScrape} disabled={brScraping} size="sm">
-                  {brScraping ? "Memproses..." : "Scrape Now"}
-                </Button>
-                {brScraping && (
-                  <span className="text-sm text-gray-500 animate-pulse">
-                    Mengumpulkan permintaan darah...
-                  </span>
-                )}
-              </div>
-              {brResult && !brScraping && (
-                <div className="text-sm space-y-1">
-                  <p className="text-green-600 font-medium">
-                    ✓ {brResult.total} permintaan ditemukan, {brResult.affected} diproses
-                    {brResult.errors > 0 && <span className="text-red-500">, {brResult.errors} error</span>}
-                  </p>
-                  <p className="text-gray-400 text-xs">⏱ {(brResult.durationMs / 1000).toFixed(1)}s</p>
-                </div>
-              )}
-              {brError && !brScraping && (
-                <p className="text-sm text-red-600">{brError}</p>
               )}
             </CardContent>
           </Card>
