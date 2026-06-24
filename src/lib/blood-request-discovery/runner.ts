@@ -69,21 +69,42 @@ export async function discoverBloodRequests(): Promise<BloodRequestDiscoverResul
     const { rows: countRows } = await pool.query("SELECT COUNT(*)::int AS cnt FROM blood_requests");
     const baseUrl = "https://vrumbtsfrqvnmdpezlot.supabase.co/rest/v1/blood_requests?select=*";
     const apiUrl = countRows[0].cnt === 0
-      ? `${baseUrl}&limit=1000`
-      : `${baseUrl}&status=not.in.(selesai,Selesai)&limit=1000`;
+      ? baseUrl
+      : `${baseUrl}&status=not.in.(selesai,Selesai)`;
 
-    const res = await axios.get(apiUrl, {
-      headers: {
+    // Paginate through all rows (Supabase REST API caps at 1000 rows per request)
+    const PAGE_SIZE = 1000;
+    const allRecords: any[] = [];
+    let total = 0;
+    let offset = 0;
+
+    do {
+      const headers: Record<string, string> = {
         apikey: ANON_KEY,
         Authorization: `Bearer ${ANON_KEY}`,
         "Accept-Profile": "public",
-      },
-      timeout: 30000,
-    });
+      };
+      if (offset === 0) {
+        headers["Prefer"] = "count=exact";
+      } else {
+        headers["Range"] = `${offset}-${offset + PAGE_SIZE - 1}`;
+      }
 
-    const records: any[] = res.data || [];
+      const res = await axios.get(apiUrl, { headers, timeout: 30000 });
+      const data: any[] = res.data || [];
+      allRecords.push(...data);
+
+      if (offset === 0) {
+        const contentRange: string = res.headers["content-range"] || "";
+        const m = contentRange.match(/\/(\d+)$/);
+        total = m ? parseInt(m[1], 10) : data.length;
+      }
+      offset += PAGE_SIZE;
+    } while (offset < total);
+
+    const records = allRecords;
     result.total = records.length;
-    console.log(`Fetched ${records.length} blood requests from API`);
+    console.log(`Fetched ${records.length} blood requests from API (total in remote: ${total})`);
 
     for (let i = 0; i < records.length; i += CONCURRENCY) {
       const batch = records.slice(i, i + CONCURRENCY);

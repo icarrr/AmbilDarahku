@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
@@ -8,10 +8,11 @@ import { UrgencyBadge } from "@/components/urgency-badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/glass-card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle } from "lucide-react";
+import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle, Share2, Camera, Copy, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAppUrl } from "@/lib/url";
 import { toast } from "sonner";
+import { toBlob } from "html-to-image";
 
 type BloodRequest = {
   id: string;
@@ -46,6 +47,46 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [eligibilityStatus, setEligibilityStatus] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const captureAndShare = async () => {
+    if (!cardRef.current || !request) return;
+    setSharing(true);
+    try {
+      const blob = await toBlob(cardRef.current, { cacheBust: true });
+      if (!blob) throw new Error("Gagal mengambil gambar");
+      const file = new File([blob], "permintaan-darah.png", { type: "image/png" });
+
+      // Web Share API with image → native share sheet shows Instagram/WA/FB
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Permintaan Donor Darah",
+          text: `Butuh donor darah ${bloodDisplay} untuk ${request.patient_name} di ${request.hospital}`,
+        });
+      } else {
+        // Fallback: download image
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `permintaan-darah-${id}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("Gambar berhasil diunduh");
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error("Share failed:", err);
+        toast.error("Gagal membagikan");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const fetchData = () => {
     api.get<{ request: BloodRequest }>(`/requests/${id}`)
@@ -126,6 +167,25 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const progress = request.bags > 0 ? ((request.fulfilled_bags || 0) / request.bags) * 100 : 0;
   const isFulfilled = request.status === "fulfilled" || remaining <= 0;
 
+  const shareMessage = `Ada permintaan darah!
+
+🩸 Golongan Darah: ${bloodDisplay}
+👤 Pasien: ${request.patient_name}
+🏥 ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}
+📦 Butuh: ${remaining} kantong${request.urgency === "critical" ? " ⚠️ KRITIS" : request.urgency === "urgent" ? " ⚠️ MENDESAK" : ""}
+
+${pageUrl}`;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareMessage).then(() => {
+      setLinkCopied(true);
+      toast.success("Pesan disalin");
+      setTimeout(() => setLinkCopied(false), 2000);
+    }).catch(() => {
+      toast.error("Gagal menyalin pesan");
+    });
+  };
+
   return (
     <div className="mx-auto max-w-md px-5 py-6">
       <button
@@ -136,7 +196,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
         Kembali
       </button>
 
-      <div className="overflow-hidden rounded-2xl border-2 border-red-500 shadow-xl">
+      <div ref={cardRef} className="overflow-hidden rounded-2xl border-2 border-red-500 shadow-xl bg-white">
         <div className="bg-red-600 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -242,6 +302,74 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Share buttons */}
+      <div className="mt-4 space-y-3">
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <Share2 className="mr-1 inline h-3 w-3" />
+          Bagikan ke Story
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={captureAndShare}
+            disabled={sharing}
+            className="flex flex-col items-center gap-1"
+            title="Instagram Story"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
+              <Camera className="h-5 w-5" />
+            </div>
+            <span className="text-[10px] font-medium text-gray-500">Instagram</span>
+          </button>
+
+          <button
+            onClick={captureAndShare}
+            disabled={sharing}
+            className="flex flex-col items-center gap-1"
+            title="WhatsApp Story"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
+              <MessageCircle className="h-5 w-5" />
+            </div>
+            <span className="text-[10px] font-medium text-gray-500">WhatsApp</span>
+          </button>
+
+          <button
+            onClick={captureAndShare}
+            disabled={sharing}
+            className="flex flex-col items-center gap-1"
+            title="Facebook Story"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
+              <Share2 className="h-5 w-5" />
+            </div>
+            <span className="text-[10px] font-medium text-gray-500">Facebook</span>
+          </button>
+        </div>
+
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex h-px flex-1 bg-gray-200" />
+          <span className="text-[10px] text-gray-400">atau</span>
+          <div className="flex h-px flex-1 bg-gray-200" />
+        </div>
+
+        <div className="flex items-start gap-2">
+          <textarea
+            readOnly
+            rows={3}
+            value={shareMessage}
+            className="flex-1 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 leading-relaxed"
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+          />
+          <button
+            onClick={copyLink}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50"
+            title="Salin pesan"
+          >
+            {linkCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 

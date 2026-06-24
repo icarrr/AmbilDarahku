@@ -13,7 +13,7 @@
     "seed:prod-like": "npx tsx scripts/seed-production-like.ts",
     "discover": "npx tsx scripts/discover-events.ts",
     "seed-wilayah": "npx tsx scripts/seed-wilayah.ts",
-"seed-profiles": "npx tsx scripts/seed-profiles.ts"
+    "seed-profiles": "npx tsx scripts/seed-profiles.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -25,6 +25,7 @@
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "html-to-image": "^1.11.13",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.17.0",
     "next": "16.2.6",

@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { BottomNav } from "@/components/bottom-nav";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { headers } from "next/headers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +23,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: { default: "AmbilDarahku — Temukan Donor Darah Lebih Cepat", template: "%s | AmbilDarahku" },
+  title: "AmbilDarahku",
   description: "Platform donor darah berbasis komunitas. Bangun jaringan donor darah untuk membantu menyelamatkan lebih banyak nyawa.",
   icons: [{ rel: "icon", url: "/favicon.svg", type: "image/svg+xml" }],
   openGraph: {
@@ -40,11 +41,26 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const h = await headers();
+  const rewrite = h.get("x-middleware-rewrite") || "";
+  const isMaintenance = rewrite.includes("/maintenance");
+
+  // Maintenance mode — render minimal layout without nav/sidebar
+  if (isMaintenance) {
+    return (
+      <html lang="id" className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}>
+        <body className="min-h-full flex flex-col bg-background font-sans">
+          {children}
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html
       lang="id"

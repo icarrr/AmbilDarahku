@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Link from "next/link";
-import { RefreshCw, Droplets } from "lucide-react";
+import { RefreshCw, Droplets, Wrench } from "lucide-react";
 
 type UserItem = {
   id: string;
@@ -68,16 +68,54 @@ export default function AdminPage() {
     durationMs: number;
   } | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [brResult, setBrResult] = useState<{ total: number; affected: number; errors: number; durationMs: number } | null>(null);
+  const [profileResult, setProfileResult] = useState<{
+    profilesFetched: number;
+    profilesInserted: number;
+    profilesSkipped: number;
+    donorsFetched: number;
+    donorsInserted: number;
+    donorsSkipped: number;
+    durationMs: number;
+  } | null>(null);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [togglingMaintenance, setTogglingMaintenance] = useState(false);
+
+  const toggleMaintenance = async () => {
+    setTogglingMaintenance(true);
+    try {
+      const newVal = !maintenanceMode;
+      await api.post("/admin/maintenance", { enabled: newVal });
+      setMaintenanceMode(newVal);
+      toast.success(newVal ? "Mode pemeliharaan AKTIF" : "Mode pemeliharaan NONAKTIF");
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengubah mode pemeliharaan");
+    } finally {
+      setTogglingMaintenance(false);
+    }
+  };
 
   const handleScrape = async () => {
     setScraping(true);
     setScrapeResult(null);
+    setBrResult(null);
+    setProfileResult(null);
     setScrapeError(null);
     try {
       const data = await api.post<any>("/discover");
       setScrapeResult(data.events);
       setBrResult(data.bloodRequests);
-      toast.success(`Event: ${data.events.totalNew} baru · Darah: ${data.bloodRequests.total} permintaan, ${data.bloodRequests.affected} diproses`);
+      setProfileResult(data.profiles);
+      const parts: string[] = [];
+      if (data.events) parts.push(`Event: ${data.events.totalNew} baru`);
+      if (data.bloodRequests) parts.push(`Darah: ${data.bloodRequests.affected} diproses`);
+      if (data.profiles) {
+        const p = data.profiles;
+        if (p.profilesInserted > 0 || p.donorsInserted > 0) {
+          parts.push(`Profil: ${p.profilesInserted} donor + ${p.donorsInserted} baru`);
+        }
+      }
+      toast.success(parts.join(" · ") || "Scrape selesai");
     } catch (err: any) {
       const msg = err.message || "Gagal menjalankan scrape";
       setScrapeError(msg);
@@ -87,12 +125,11 @@ export default function AdminPage() {
     }
   };
 
-  const [brResult, setBrResult] = useState<{ total: number; affected: number; errors: number; durationMs: number } | null>(null);
-
   useEffect(() => {
     if (!isAdmin) return;
     api.get<{ users: UserItem[] }>("/admin/users").then(d => setUsers(d.users || [])).catch(() => {});
     api.get<AdminStats>("/admin/stats").then(d => setStats(d)).catch(() => {});
+    api.get<{ enabled: boolean }>("/admin/maintenance").then(d => setMaintenanceMode(d.enabled)).catch(() => {});
   }, [isAdmin]);
 
   if (!isAdmin) {
@@ -137,7 +174,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Total Donor</CardDescription>
+                <CardDescription>Total Calon Donor</CardDescription>
                 <CardTitle className="text-3xl">{stats?.total_donors ?? "—"}</CardTitle>
               </CardHeader>
             </Card>
@@ -217,6 +254,43 @@ export default function AdminPage() {
             </Link>
           </div>
 
+          <Card className={maintenanceMode ? "border-amber-400 ring-1 ring-amber-400" : ""}>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wrench className={`h-4 w-4 ${maintenanceMode ? "text-amber-500" : "text-gray-500"}`} />
+                Mode Pemeliharaan
+              </CardTitle>
+              <CardDescription>
+                Saat aktif, pengunjung melihat halaman pemeliharaan. API dan halaman admin tetap dapat diakses.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleMaintenance}
+                    disabled={togglingMaintenance}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      maintenanceMode ? "bg-amber-500" : "bg-gray-200"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                        maintenanceMode ? "translate-x-[22px]" : "translate-x-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-sm font-semibold ${maintenanceMode ? "text-amber-600" : "text-gray-500"}`}>
+                    {maintenanceMode ? "Aktif" : "Aman"}
+                  </span>
+                </div>
+                <Badge variant={maintenanceMode ? "destructive" : "outline"}>
+                  {maintenanceMode ? "Pengunjung melihat maint. page" : "Semua normal"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -224,7 +298,7 @@ export default function AdminPage() {
                 Scrape Semua
               </CardTitle>
               <CardDescription>
-                Scrape event donor darah + permintaan darah dari sumber eksternal. Berjalan otomatis tiap jam.
+                Scrape event donor darah + permintaan darah + profil donor dari sumber eksternal. Berjalan otomatis tiap jam.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -266,7 +340,16 @@ export default function AdminPage() {
                       </p>
                     </>
                   )}
-                  <p className="text-gray-400 text-xs">⏱ Event {(scrapeResult.durationMs / 1000).toFixed(1)}s{brResult ? ` · Darah ${(brResult.durationMs / 1000).toFixed(1)}s` : ""}</p>
+                  {profileResult && (
+                    <>
+                      <p className="text-green-600 font-medium">
+                        ✓ Profil: {profileResult.profilesInserted} profil baru, {profileResult.donorsInserted} donor baru
+                        {profileResult.profilesSkipped > 0 && <span className="text-gray-500"> ({profileResult.profilesSkipped} sudah ada)</span>}
+                        {profileResult.donorsSkipped > 0 && <span className="text-gray-500"> · {profileResult.donorsSkipped} donor skip</span>}
+                      </p>
+                    </>
+                  )}
+                  <p className="text-gray-400 text-xs">⏱ Event {(scrapeResult.durationMs / 1000).toFixed(1)}s{brResult ? ` · Darah ${(brResult.durationMs / 1000).toFixed(1)}s` : ""}{profileResult ? ` · Profil ${(profileResult.durationMs / 1000).toFixed(1)}s` : ""}</p>
                 </div>
               )}
               {scrapeError && !scraping && (

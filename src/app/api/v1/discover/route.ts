@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { discoverEvents } from "@/lib/event-discovery/runner";
 import { discoverBloodRequests } from "@/lib/blood-request-discovery/runner";
+import { discoverProfiles } from "@/lib/profile-discovery/runner";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -16,9 +17,12 @@ export async function POST(request: NextRequest) {
       }
     }
     try {
-      const events = await discoverEvents();
-      const blood = await discoverBloodRequests();
-      return NextResponse.json({ events, bloodRequests: blood });
+      const [events, blood, profiles] = await Promise.all([
+        discoverEvents(),
+        discoverBloodRequests(),
+        discoverProfiles(),
+      ]);
+      return NextResponse.json({ events, bloodRequests: blood, profiles });
     } catch (err: any) {
       return NextResponse.json({ error: err.message || "discovery failed" }, { status: 500 });
     }
@@ -33,11 +37,12 @@ export async function POST(request: NextRequest) {
   if (admin) return admin;
 
   try {
-    const [events, blood] = await Promise.all([
+    const [events, blood, profiles] = await Promise.all([
       discoverEvents(),
       discoverBloodRequests(),
+      discoverProfiles(),
     ]);
-    return NextResponse.json({ events, bloodRequests: blood });
+    return NextResponse.json({ events, bloodRequests: blood, profiles });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "discovery failed" }, { status: 500 });
   }

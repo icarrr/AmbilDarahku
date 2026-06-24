@@ -297,6 +297,14 @@ CREATE TABLE IF NOT EXISTS user_titles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_titles_user ON user_titles(user_id);
+
+CREATE TABLE IF NOT EXISTS config (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO config (key, value) VALUES ('maintenance', '{"enabled": false}') ON CONFLICT DO NOTHING;
 `;
 
 const enableRls = `

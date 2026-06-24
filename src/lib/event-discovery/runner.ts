@@ -87,15 +87,37 @@ async function scrapeSource(source: SourceConfig): Promise<{ events: ScrapedEven
     }
 
     if (source.sourceType === "rest_api") {
-      const res = await axios.get(source.sourceUrl, {
-        headers: {
+      // Paginate through all rows (Supabase REST API caps at 1000 rows per request)
+      const PAGE_SIZE = 1000;
+      const allRecords: any[] = [];
+      let total = 0;
+      let offset = 0;
+
+      do {
+        const headers: Record<string, string> = {
           apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydW1idHNmcnF2bm1kcGV6bG90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTY0MzYsImV4cCI6MjA5MjIzMjQzNn0.xrk5qWUbr4JoaPBW5NdJlqT3AyBHdTS9a4ifami3vuo",
           Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydW1idHNmcnF2bm1kcGV6bG90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTY0MzYsImV4cCI6MjA5MjIzMjQzNn0.xrk5qWUbr4JoaPBW5NdJlqT3AyBHdTS9a4ifami3vuo",
           "Accept-Profile": "public",
-        },
-      });
-      const records: any[] = res.data || [];
-      const events: ScrapedEvent[] = records.map((r: any) => ({
+        };
+        if (offset === 0) {
+          headers["Prefer"] = "count=exact";
+        } else {
+          headers["Range"] = `${offset}-${offset + PAGE_SIZE - 1}`;
+        }
+
+        const res = await axios.get(source.sourceUrl, { headers, timeout: 30000 });
+        const data: any[] = res.data || [];
+        allRecords.push(...data);
+
+        if (offset === 0) {
+          const contentRange: string = res.headers["content-range"] || "";
+          const m = contentRange.match(/\/(\d+)$/);
+          total = m ? parseInt(m[1], 10) : data.length;
+        }
+        offset += PAGE_SIZE;
+      } while (offset < total);
+
+      const events: ScrapedEvent[] = allRecords.map((r: any) => ({
         title: r.title,
         description: r.description || undefined,
         location: r.location,
