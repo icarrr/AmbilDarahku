@@ -4,7 +4,7 @@ import { useEffect, useState, use, useRef } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
-import { UrgencyBadge } from "@/components/urgency-badge";
+
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/glass-card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -55,14 +55,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     if (!cardRef.current || !request) return;
     setSharing(true);
     try {
-      const blob = await toBlob(cardRef.current, {
-        cacheBust: true,
-        style: {
-          padding: "16px",
-          backgroundColor: "#ffffff",
-          borderRadius: "16px",
-        } as Partial<CSSStyleDeclaration>,
-      });
+      const blob = await toBlob(cardRef.current, { cacheBust: true });
       if (!blob) throw new Error("Gagal mengambil gambar");
       const file = new File([blob], "permintaan-darah.png", { type: "image/png" });
 
@@ -203,14 +196,14 @@ ${pageUrl}`;
         Kembali
       </button>
 
-      <div ref={cardRef} className="overflow-hidden rounded-2xl border-2 border-red-500 shadow-xl bg-white">
-        <div className="bg-red-600 px-4 py-3">
+      <div ref={cardRef} className="p-4 bg-white rounded-2xl">
+        <div className="overflow-hidden rounded-2xl border-2 border-red-500 shadow-xl bg-white">
+          <div className="bg-red-600 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Droplets className="h-5 w-5 text-white" />
                 <span className="text-sm font-bold text-white">PERMINTAAN DARAH</span>
               </div>
-              <UrgencyBadge level={request.urgency} />
           </div>
         </div>
 
@@ -228,20 +221,7 @@ ${pageUrl}`;
                   </div>
                 </div>
               )}
-              <div className="mt-2">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                    request.urgency === "critical"
-                      ? "bg-red-100 text-red-700"
-                      : request.urgency === "urgent"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-blue-100 text-blue-700"
-                  }`}
-                >
-                  {request.urgency === "critical" && <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />}
-                  {request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "BIASA"}
-                </span>
-              </div>
+
             </div>
 
             <div className="min-w-0 flex-1">
@@ -309,6 +289,7 @@ ${pageUrl}`;
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 
