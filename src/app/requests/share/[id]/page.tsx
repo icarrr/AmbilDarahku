@@ -64,7 +64,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
         await navigator.share({
           files: [file],
           title: "Permintaan Donor Darah",
-          text: `Butuh donor darah ${bloodDisplay} untuk ${request.patient_name} di ${request.hospital}`,
+          text: `Butuh donor darah ${bloodDisplay} untuk ${request.patient_name} di ${request.hospital} | Hubungi https://wa.me/${request.contact_phone}`,
         });
       } else {
         // Fallback: download image
