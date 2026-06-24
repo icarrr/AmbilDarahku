@@ -55,7 +55,14 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     if (!cardRef.current || !request) return;
     setSharing(true);
     try {
-      const blob = await toBlob(cardRef.current, { cacheBust: true });
+      const blob = await toBlob(cardRef.current, {
+        cacheBust: true,
+        style: {
+          padding: "16px",
+          backgroundColor: "#ffffff",
+          borderRadius: "16px",
+        } as Partial<CSSStyleDeclaration>,
+      });
       if (!blob) throw new Error("Gagal mengambil gambar");
       const file = new File([blob], "permintaan-darah.png", { type: "image/png" });
 
@@ -198,12 +205,12 @@ ${pageUrl}`;
 
       <div ref={cardRef} className="overflow-hidden rounded-2xl border-2 border-red-500 shadow-xl bg-white">
         <div className="bg-red-600 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Droplets className="h-5 w-5 text-white" />
-              <span className="text-sm font-bold text-white">PERMINTAAN DARAH</span>
-            </div>
-            <UrgencyBadge level={request.urgency} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Droplets className="h-5 w-5 text-white" />
+                <span className="text-sm font-bold text-white">PERMINTAAN DARAH</span>
+              </div>
+              <UrgencyBadge level={request.urgency} />
           </div>
         </div>
 

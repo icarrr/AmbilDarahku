@@ -49,8 +49,8 @@ function ForgotPasswordForm() {
             </div>
             <p className="text-xs text-muted-foreground">
               Hubungi admin di{" "}
-              <a href="https://wa.me/6289607105441" target="_blank" rel="noopener noreferrer" className="font-medium text-red-600 hover:text-red-700">
-                wa.me/6289607105441
+              <a href="https://www.instagram.com/ambildarahku/" target="_blank" rel="noopener noreferrer" className="font-medium text-red-600 hover:text-red-700">
+                @ambildarahku
               </a>{" "}
               jika Anda merasa email terdaftar namun tidak menerima email.
             </p>

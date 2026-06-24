@@ -204,6 +204,28 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      <section className="bg-red-50/40 px-5 py-12 md:py-16">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="font-heading text-2xl font-bold text-foreground md:text-3xl">
+            Partner Kami
+          </h2>
+          <div className="mt-8 flex justify-center">
+            <a
+              href="https://www.instagram.com/kawansedarah/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-transform hover:scale-105"
+            >
+              <img
+                src="/images/kawan-sedarah.jpg"
+                alt="Kawan Sedarah"
+                className="h-20 w-20 rounded-2xl shadow-md"
+              />
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="px-4 py-16 md:py-24">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center justify-between">
@@ -297,14 +319,13 @@ export default async function LandingPage() {
                 <h4 className="mb-3 text-sm font-semibold text-foreground">Kontak</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li><a href="https://www.instagram.com/ambildarahku/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600">@ambildarahku</a></li>
-                  <li><a href="tel:+62215551234" className="hover:text-red-600">+62 21 555 1234</a></li>
                 </ul>
               </div>
             </div>
           </div>
           <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-6 md:flex-row">
             <p className="text-xs text-[#94a3b8]">
-              © {new Date().getFullYear()} AmbilDarahku. Dibuat dengan ❤️ untuk kemanusiaan.
+              &copy; {new Date().getFullYear()} AmbilDarahku. Dibuat dengan ❤️ untuk kemanusiaan.
             </p>
             <div className="flex gap-4 text-xs text-[#94a3b8]">
               <Link href="/privacy" className="hover:text-muted-foreground">Kebijakan Privasi</Link>
