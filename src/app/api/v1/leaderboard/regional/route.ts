@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -19,5 +20,10 @@ export async function GET(request: NextRequest) {
     .order("total_donations", { ascending: false })
     .limit(50);
 
-  return NextResponse.json({ leaderboard: leaderboard || [] });
+  const enriched = (leaderboard || []).map((entry: any) => ({
+    ...entry,
+    city_name: lookupName(entry.city || ""),
+  }));
+
+  return NextResponse.json({ leaderboard: enriched });
 }

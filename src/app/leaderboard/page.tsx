@@ -13,6 +13,7 @@ type LeaderboardUser = {
   full_name: string;
   blood_type: string;
   city: string;
+  city_name?: string;
   total_donations: number;
   total_points: number;
   last_donation_date?: string;
@@ -186,7 +187,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <BloodTypeBadge type={entry.blood_type} size="sm" />
-                  <span className="truncate">{entry.city}</span>
+                  <span className="truncate">{entry.city_name || entry.city}</span>
                 </div>
                 <div className="mt-1 h-1.5 w-full max-w-[120px] overflow-hidden rounded-full bg-gray-100">
                   <div

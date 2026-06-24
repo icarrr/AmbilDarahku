@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useWilayah } from "@/lib/hooks/useWilayah";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
 import {
   Award, Bell,
@@ -56,6 +57,7 @@ type UrgentRequest = {
 
 export default function ProfilePage() {
   const { user, refreshUser, isUnverified } = useAuth();
+  const wilayah = useWilayah();
   const [badges, setBadges] = useState<BadgeData[]>([]);
   const [status, setStatus] = useState<DonorStatus | null>(null);
   const [urgentRequests, setUrgentRequests] = useState<UrgentRequest[]>([]);
@@ -437,9 +439,30 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Provinsi</Label><Input value={form.province} onChange={e => setForm(p => ({ ...p, province: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label>Kota</Label><Input value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label>Kecamatan</Label><Input value={form.district} onChange={e => setForm(p => ({ ...p, district: e.target.value }))} /></div>
+                  <div className="space-y-1"><Label>Provinsi</Label>
+                    <Select value={form.province || "none"} onValueChange={v => { const val = (v === "none" ? "" : v) || ""; setForm(p => ({ ...p, province: val, city: p.province === val ? p.city : "", district: p.province === val ? p.district : "" })); }}>
+                      <SelectTrigger><SelectValue placeholder="Pilih provinsi" /></SelectTrigger>
+                      <SelectContent>
+                        {wilayah.provinces.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1"><Label>Kota</Label>
+                    <Select value={form.city || "none"} onValueChange={v => { const val = (v === "none" ? "" : v) || ""; setForm(p => ({ ...p, city: val, district: p.city === val ? p.district : "" })); }} disabled={!form.province}>
+                      <SelectTrigger><SelectValue placeholder={form.province ? "Pilih kota" : "Pilih provinsi dulu"} /></SelectTrigger>
+                      <SelectContent>
+                        {wilayah.getRegencies(form.province).map(r => <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1"><Label>Kecamatan</Label>
+                    <Select value={form.district || "none"} onValueChange={v => setForm(p => ({ ...p, district: (v === "none" ? "" : v) || "" }))} disabled={!form.city}>
+                      <SelectTrigger><SelectValue placeholder={form.city ? "Pilih kecamatan" : "Pilih kota dulu"} /></SelectTrigger>
+                      <SelectContent>
+                        {wilayah.getDistricts(form.city).map(d => <SelectItem key={d.code} value={d.code}>{d.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-1"><Label>Tanggal Lahir</Label><Input type="date" value={form.date_of_birth} onChange={e => setForm(p => ({ ...p, date_of_birth: e.target.value }))} /></div>
                 </div>
 

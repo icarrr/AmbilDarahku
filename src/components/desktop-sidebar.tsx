@@ -13,13 +13,13 @@ import {
 const mainLinks = [
   { href: "/", label: "Beranda", icon: LayoutDashboard },
   { href: "/search", label: "Cari Donor", icon: Search },
+  { href: "/events", label: "Event Donor", icon: CalendarDays },
   { href: "/requests", label: "Permintaan Darah", icon: TriangleAlert },
 ];
 
 const menuLinks = [
   { href: "/profile", label: "Profil", icon: User },
   { href: "/donor-history", label: "Riwayat Donor", icon: History },
-  { href: "/events", label: "Event Donor", icon: CalendarDays },
   { href: "/leaderboard", label: "Peringkat", icon: Trophy },
 ];
 

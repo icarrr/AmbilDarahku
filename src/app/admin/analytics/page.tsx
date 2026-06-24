@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 
 type InstitutionItem = { institution: string; total: number };
-type CityItem = { city: string; total: number };
+type CityItem = { city: string; city_name?: string; total: number };
 type YearItem = { year: number; total: number };
 type MonthItem = { year: number; month: number; total: number };
 type AgeBucket = { bucket: string; total: number };
@@ -95,7 +95,7 @@ export default function AdminAnalyticsPage() {
         <Card>
           <CardHeader><CardTitle>Donasi per Kota</CardTitle><CardDescription>20 kota teratas</CardDescription></CardHeader>
           <CardContent className="space-y-1.5">
-            {cities.map(c => <Bar key={c.city} label={c.city} value={c.total} max={maxCity} />)}
+            {cities.map(c => <Bar key={c.city_name || c.city} label={c.city_name || c.city} value={c.total} max={maxCity} />)}
             {cities.length === 0 && <p className="text-center text-gray-400 py-4">Belum ada data.</p>}
           </CardContent>
         </Card>

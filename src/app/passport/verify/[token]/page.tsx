@@ -15,6 +15,7 @@ type VerifyResult = {
     full_name: string;
     blood_type: string;
     city: string;
+    city_name?: string;
     total_donations: number;
     total_points: number;
   };
@@ -101,7 +102,7 @@ export default async function VerifyPassportPage({ params }: Props) {
           <div className="mt-2 space-y-1.5">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
-              {donor?.city}
+              {donor?.city_name || donor?.city}
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />

@@ -19,6 +19,7 @@ type BloodRequest = {
   blood_type: string;
   hospital: string;
   city: string;
+  city_name?: string;
   urgency: string;
   bags: number;
   fulfilled_bags: number;
@@ -185,7 +186,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
                 </div>
                 <div className="flex items-center gap-2">
                   <Hospital className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                  <span className="text-xs text-muted-foreground">{request.hospital}{request.city ? `, ${request.city}` : ""}</span>
+                  <span className="text-xs text-muted-foreground">{request.hospital}{request.city ? `, ${request.city_name || request.city}` : ""}</span>
                 </div>
               </div>
 
@@ -224,7 +225,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
                     `Halo, saya ingin membantu donor darah untuk:\n\n` +
                     `🩸 Golongan Darah: ${bloodDisplay}\n` +
                     `👤 Pasien: ${request.patient_name}\n` +
-                    `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city}` : ""}\n` +
+                    `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}\n` +
                     `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
                     `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
                     `Mohon info lebih lanjut. Terima kasih.`
@@ -257,6 +258,11 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
                 if (isUnverified) {
                   toast.error("Verifikasi email terlebih dahulu");
                   router.push("/verify-email");
+                  return;
+                }
+                if (!user?.date_of_birth) {
+                  toast.error("Atur tanggal lahir di profil terlebih dahulu");
+                  router.push("/profile");
                   return;
                 }
                 if (isWaitingOrIneligible) return;

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Droplets } from "lucide-react";
 
 type UserItem = {
   id: string;
@@ -19,6 +19,7 @@ type UserItem = {
   role: string;
   blood_type: string;
   city: string;
+  city_name?: string;
   total_donations: number;
   eligibility_status: string;
   availability_status: string;
@@ -203,6 +204,17 @@ export default function AdminPage() {
                 </CardHeader>
               </Card>
             </Link>
+            <Link href="/admin/blood-requests">
+              <Card className="cursor-pointer hover:shadow-md transition-shadow h-full border-red-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Droplets className="h-4 w-4 text-red-500" />
+                    Permintaan Darah
+                  </CardTitle>
+                  <CardDescription>Kelola permintaan donor darah, tandai terpenuhi untuk donasi langsung.</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
           </div>
 
           <Card>
@@ -301,7 +313,7 @@ export default function AdminPage() {
                         <Badge variant="outline">{ROLE_LABELS[u.role] || u.role}</Badge>
                       </td>
                       <td className="py-2 pr-4">{u.blood_type}</td>
-                      <td className="py-2 pr-4">{u.city}</td>
+                      <td className="py-2 pr-4">{u.city_name || u.city}</td>
                       <td className="py-2 pr-4">{u.total_donations}x</td>
                       <td className="py-2 pr-4">
                         <Badge variant={u.eligibility_status === "eligible" ? "default" : "secondary"} className="text-xs">

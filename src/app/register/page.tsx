@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { api } from "@/lib/api";
+import { useWilayah } from "@/lib/hooks/useWilayah";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,11 +34,20 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  const wilayah = useWilayah();
+
   const [form, setForm] = useState({
     full_name: "", email: "", phone: "", password: "", date_of_birth: "", gender: "",
     blood_type: "", weight_kg: "", height_cm: "",
     province: "", city: "", district: "",
   });
+  const [selProv, setSelProv] = useState<string | null>(null);
+  const [recoveryData, setRecoveryData] = useState<{ email: string; phone: string; message?: string } | null>(null);
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [selCity, setSelCity] = useState<string | null>(null);
+  const regencies = selProv ? wilayah.getRegencies(selProv) : [];
+  const districts = selCity ? wilayah.getDistricts(selCity) : [];
 
   const update = (key: string, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -86,17 +97,38 @@ export default function RegisterPage() {
     if (!validateStep3()) return;
     setLoading(true);
     try {
-      await register({
+      const result = await register({
         ...form,
         weight_kg: parseFloat(form.weight_kg),
         height_cm: parseFloat(form.height_cm),
       });
-      toast.success("Pendaftaran berhasil!");
+      if (result?.donor_bound) {
+        toast.success("Akun donor Anda berhasil dihubungkan dengan email baru");
+      } else {
+        toast.success("Pendaftaran berhasil!");
+      }
       router.push("/profile");
-    } catch (err: unknown) {
+    } catch (err: any) {
+      if (err.statusCode === 409 && err.can_reset) {
+        setRecoveryData({ email: form.email, phone: form.phone, message: err.friendlyMessage });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Gagal mendaftar");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendReset = async () => {
+    if (!recoveryData) return;
+    setSendingReset(true);
+    try {
+      await api.post("/auth/forgot-password", { email: recoveryData.email }, false);
+      setResetSent(true);
+    } catch {
+      toast.error("Gagal mengirim tautan reset. Coba beberapa saat lagi.");
+    } finally {
+      setSendingReset(false);
     }
   };
 
@@ -137,6 +169,34 @@ export default function RegisterPage() {
           <p className="mt-1 text-sm text-muted-foreground">Bergabung dan selamatkan nyawa</p>
         </div>
 
+        {recoveryData ? (
+          <div className="space-y-4 py-4 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+              <Droplets className="h-6 w-6 text-amber-600" />
+            </div>
+            <h2 className="text-lg font-bold text-foreground">Akun Sudah Terdaftar</h2>
+            <p className="text-sm text-muted-foreground">
+              {recoveryData.message || "Kami mendeteksi Anda sudah terdaftar. Jika Anda ingin atur kata sandi, kami akan mengirimkan tautan reset password."}
+            </p>
+            <div className="flex flex-col gap-2 pt-2">
+              {recoveryData.email && !resetSent && (
+                <Button onClick={handleSendReset} disabled={sendingReset} className="bg-red-600 hover:bg-red-700">
+                  {sendingReset ? "Mengirim..." : "Kirim Tautan Reset Password"}
+                </Button>
+              )}
+              {resetSent && (
+                <div className="rounded-lg bg-green-50 p-3">
+                  <p className="text-sm font-medium text-green-700">Tautan reset telah dikirim ke email Anda</p>
+                  <p className="text-xs text-green-600">Cek kotak masuk (atau spam) Anda.</p>
+                </div>
+              )}
+              <Button variant="outline" onClick={() => router.push("/login")}>
+                Masuk
+              </Button>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="mb-3 flex items-center justify-center gap-2">
           {stepIndicator(1, "Data Diri")}
           <div className="h-px w-6 bg-gray-200" />
@@ -245,26 +305,68 @@ export default function RegisterPage() {
             <>
               <div className="space-y-1.5">
                 <Label>Provinsi</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.province && "border-red-400")} value={form.province} onChange={e => update("province", e.target.value)} required placeholder="Jawa Timur" />
-                </div>
+                <Select
+                  value={selProv}
+                  onValueChange={(v) => {
+                    const val = v || "";
+                    setSelProv(val);
+                    setSelCity(null);
+                    update("province", val);
+                    update("city", "");
+                    update("district", "");
+                  }}
+                  disabled={!wilayah.loaded}
+                >
+                  <SelectTrigger className={cn(errors.province && "border-red-400")}>
+                    <SelectValue placeholder={wilayah.loaded ? "Pilih provinsi..." : "Memuat..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wilayah.provinces.map((p) => (
+                      <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {fieldError("province")}
               </div>
               <div className="space-y-1.5">
                 <Label>Kabupaten/Kota</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.city && "border-red-400")} value={form.city} onChange={e => update("city", e.target.value)} required placeholder="Malang" />
-                </div>
+                <Select
+                  value={selCity}
+                  onValueChange={(v) => {
+                    const val = v || "";
+                    setSelCity(val);
+                    update("city", val);
+                    update("district", "");
+                  }}
+                  disabled={!selProv || !wilayah.loaded}
+                >
+                  <SelectTrigger className={cn(errors.city && "border-red-400")}>
+                    <SelectValue placeholder={selProv ? "Pilih kota..." : "Pilih provinsi dulu"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regencies.map((r) => (
+                      <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {fieldError("city")}
               </div>
               <div className="space-y-1.5">
                 <Label>Kecamatan</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.district && "border-red-400")} value={form.district} onChange={e => update("district", e.target.value)} required placeholder="Lowokwaru" />
-                </div>
+                <Select
+                  value={form.district}
+                  onValueChange={(v) => update("district", v || "")}
+                  disabled={!selCity || !wilayah.loaded}
+                >
+                  <SelectTrigger className={cn(errors.district && "border-red-400")}>
+                    <SelectValue placeholder={selCity ? "Pilih kecamatan..." : "Pilih kota dulu"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {districts.map((d) => (
+                      <SelectItem key={d.code} value={d.code}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {fieldError("district")}
               </div>
               <p className="text-xs text-[#94a3b8]">
@@ -279,6 +381,8 @@ export default function RegisterPage() {
             </>
           )}
         </form>
+        </>
+        )}
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
           Sudah punya akun?{" "}

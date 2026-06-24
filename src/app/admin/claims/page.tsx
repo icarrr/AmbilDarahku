@@ -33,6 +33,7 @@ type ClaimWithUser = {
   phone: string;
   donor_blood_type: string;
   donor_city: string;
+  donor_city_name?: string;
 };
 
 export default function AdminClaimsPage() {
@@ -137,7 +138,7 @@ export default function AdminClaimsPage() {
                   </div>
                   <div>
                     <span className="text-gray-500">Donor Kota</span>
-                    <p className="font-medium">{c.donor_city}</p>
+                    <p className="font-medium">{c.donor_city_name || c.donor_city}</p>
                   </div>
                 </div>
 

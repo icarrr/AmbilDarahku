@@ -7,17 +7,27 @@ import { StatusBadge } from "@/components/status-badge";
 import { GlassCard } from "@/components/glass-card";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
 import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck } from "lucide-react";
+import { lookupName } from "@/lib/data/wilayah";
 
 type Props = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
   try {
-    const { data: user } = await supabase
+    let query = supabase
       .from("users")
       .select("full_name, blood_type, city, total_donations, total_points")
-      .eq("username", username)
-      .maybeSingle();
+      .eq("username", username);
+    let { data: user } = await query.maybeSingle();
+
+    if (!user && /^[0-9a-f-]{36}$/.test(username)) {
+      const { data: byId } = await supabase
+        .from("users")
+        .select("full_name, blood_type, city, total_donations, total_points")
+        .eq("id", username)
+        .maybeSingle();
+      user = byId;
+    }
     if (!user) return { title: "Donor Tidak Ditemukan" };
     return {
       title: `${user.full_name} — ${user.blood_type}`,
@@ -42,6 +52,7 @@ type PublicProfile = {
   avatar_url?: string | null;
   blood_type: string;
   city: string;
+  city_name?: string;
   weight_kg: number;
   total_donations: number;
   total_points: number;
@@ -58,11 +69,18 @@ type PublicProfile = {
 
 async function getProfile(username: string): Promise<PublicProfile | null> {
   try {
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username)
-      .maybeSingle();
+    let query = supabase.from("users").select("*").eq("username", username);
+    let { data: user } = await query.maybeSingle();
+
+    if (!user && /^[0-9a-f-]{36}$/.test(username)) {
+      const { data: byId } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", username)
+        .maybeSingle();
+      user = byId;
+    }
+
     if (!user) return null;
 
     const { data: userBadges } = await supabase
@@ -115,12 +133,11 @@ export default async function PublicPortfolioPage({
         <h1 className="mt-4 font-heading text-2xl font-bold text-foreground">
           {profile.full_name}
         </h1>
-        <p className="text-sm text-muted-foreground">@{username}</p>
         <div className="mt-2 flex items-center justify-center gap-3">
           <BloodTypeBadge type={bloodDisplay} size="md" />
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
-            {profile.city}
+            {lookupName(profile.city)}
           </span>
           <StatusBadge status={profile.eligibility_status} dot />
         </div>

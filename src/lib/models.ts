@@ -12,8 +12,11 @@ export interface User {
   weight_kg: number;
   height_cm: number;
   province: string;
+  province_name?: string;
   city: string;
+  city_name?: string;
   district: string;
+  district_name?: string;
   latitude: number;
   longitude: number;
   username: string | null;

@@ -34,7 +34,9 @@ type UserData = {
   full_name: string;
   blood_type: string;
   city: string;
+  city_name?: string;
   province: string;
+  province_name?: string;
   total_donations: number;
   total_points: number;
   donation_volume_total: number;
@@ -100,7 +102,7 @@ export default function RecognitionPage() {
                 <BloodTypeBadge type={userData.blood_type} size="sm" />
                 <span className="text-xs text-red-200">
                   <MapPin className="mr-1 inline h-3 w-3" />
-                  {userData.city}
+                  {userData.city_name || userData.city}
                 </span>
               </div>
             </div>

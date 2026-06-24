@@ -28,6 +28,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { data: user } = await supabase.from("users").select("*").eq("id", auth.userId).maybeSingle();
     if (!user) return NextResponse.json({ error: "donor not found" }, { status: 404 });
+    if (!user.date_of_birth) {
+      return NextResponse.json({ error: "Atur tanggal lahir di profil sebelum donor" }, { status: 400 });
+    }
 
     const { data: existingDonation } = await supabase
       .from("donor_histories")

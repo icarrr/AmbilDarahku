@@ -25,6 +25,7 @@ type VerificationWithUser = {
   phone: string;
   blood_type: string;
   city: string;
+  city_name?: string;
   user_level: number;
 };
 
@@ -108,7 +109,7 @@ export default function AdminVerificationsPage() {
                   <div>
                     <CardTitle className="text-base">{v.full_name}</CardTitle>
                     <CardDescription>
-                      {v.email} &middot; {v.phone} &middot; {v.city}
+                      {v.email} &middot; {v.phone} &middot; {v.city_name || v.city}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -127,7 +128,7 @@ export default function AdminVerificationsPage() {
                   </div>
                   <div>
                     <span className="text-gray-500">Kota</span>
-                    <p className="font-medium">{v.city}</p>
+                    <p className="font-medium">{v.city_name || v.city}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">Level Saat Ini</span>

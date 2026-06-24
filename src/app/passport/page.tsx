@@ -39,7 +39,9 @@ type UserData = {
   full_name: string;
   blood_type: string;
   city: string;
+  city_name?: string;
   province: string;
+  province_name?: string;
   total_donations: number;
   verification_level: number;
   weight_kg: number;
@@ -178,7 +180,7 @@ export default function PassportPage() {
                 <BloodTypeBadge type={display?.blood_type || "O"} size="sm" />
                 <span className="text-xs text-red-200">
                   <MapPin className="mr-1 inline h-3 w-3" />
-                  {display?.city}
+                  {display?.city_name || display?.city}
                 </span>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { hashPassword } from "@/lib/password";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 import { sendVerificationEmail } from "@/lib/email";
 import crypto from "crypto";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -17,13 +18,71 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: existingEmail } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
+    const { data: existingPhone } = existingEmail
+      ? { data: null }
+      : await supabase.from("users").select("id, email").eq("phone", phone).maybeSingle();
+
     if (existingEmail) {
-      return NextResponse.json({ error: "email already registered" }, { status: 409 });
+      return NextResponse.json({
+        error: "already_registered",
+        message: "Kami mendeteksi Anda sudah terdaftar berdasarkan data PMI. Jika Anda ingin atur kata sandi, kami akan mengirimkan tautan reset password.",
+        can_reset: true,
+      }, { status: 409 });
     }
 
-    const { data: existingPhone } = await supabase.from("users").select("id").eq("phone", phone).maybeSingle();
+    // Phone conflict — if the existing account is a seeded donor (placeholder email), bind the real email
     if (existingPhone) {
-      return NextResponse.json({ error: "phone already registered" }, { status: 409 });
+      if (existingPhone.email && existingPhone.email.endsWith("@donor.ambildarahku.id")) {
+        const passwordHash = await hashPassword(password);
+        const { data: updated } = await supabase
+          .from("users")
+          .update({ email, password_hash: passwordHash, email_verified: false, updated_at: new Date().toISOString() })
+          .eq("id", existingPhone.id)
+          .select("id, created_at, updated_at")
+          .maybeSingle();
+
+        if (updated) {
+          const accessToken = generateAccessToken(updated.id, email, "donor", false);
+          const refreshToken = generateRefreshToken();
+          const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+          await supabase.from("refresh_tokens").insert({
+            user_id: updated.id,
+            token_hash: crypto.createHash("sha256").update(refreshToken).digest("hex"),
+            expires_at: expiresAt.toISOString(),
+          });
+
+          return NextResponse.json({
+            donor_bound: true,
+            user: {
+              id: updated.id,
+              full_name,
+              email,
+              phone,
+              role: "donor",
+              blood_type: blood_type || "O",
+              city: city || "",
+              city_name: lookupName(city || ""),
+              province: province || "",
+              province_name: lookupName(province || ""),
+              district: district || "",
+              district_name: lookupName(district || ""),
+              username: username || null,
+              total_donations: 0,
+              total_points: 0,
+              email_verified: false,
+              created_at: updated.created_at,
+            },
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }, { status: 200 });
+        }
+      }
+
+      return NextResponse.json({
+        error: "already_registered",
+        message: "Kami mendeteksi Anda sudah terdaftar berdasarkan data PMI. Jika Anda ingin atur kata sandi, kami akan mengirimkan tautan reset password.",
+        can_reset: true,
+      }, { status: 409 });
     }
 
     let dob: string;
@@ -90,6 +149,11 @@ export async function POST(request: NextRequest) {
         role: "donor",
         blood_type,
         city,
+        city_name: lookupName(city || ""),
+        province,
+        province_name: lookupName(province || ""),
+        district,
+        district_name: lookupName(district || ""),
         username,
         total_donations: 0,
         total_points: 0,

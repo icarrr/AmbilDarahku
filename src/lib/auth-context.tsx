@@ -18,7 +18,10 @@ type User = {
   username?: string;
   email_verified: boolean;
   province?: string;
+  province_name?: string;
+  city_name?: string;
   district?: string;
+  district_name?: string;
   date_of_birth?: string;
   gender?: string;
   latitude?: number;
@@ -36,7 +39,7 @@ type AuthContextType = {
   isAdmin: boolean;
   isUnverified: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<any>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -97,14 +100,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (regData: RegisterData) => {
-    const data = await api.post<{
-      user: User;
-      access_token: string;
-      refresh_token: string;
-    }>("/auth/register", regData, false);
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(regData),
+    });
+    if (res.status === 409) {
+      const errBody = await res.json().catch(() => ({ error: "already_registered" }));
+      const e = new Error(errBody.error) as any;
+      e.statusCode = 409;
+      e.can_reset = errBody.can_reset;
+      e.friendlyMessage = errBody.message;
+      throw e;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(err.error);
+    }
+    const data = await res.json();
     localStorage.setItem("access_token", data.access_token);
     localStorage.setItem("refresh_token", data.refresh_token);
     setUser(data.user);
+    return data;
   };
 
   const logout = async () => {

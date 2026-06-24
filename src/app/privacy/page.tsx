@@ -46,7 +46,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2 className="mb-2 font-heading text-lg font-semibold">5. Hak Anda</h2>
-          <p>Anda berhak mengakses, mengoreksi, atau menghapus data Anda kapan saja melalui pengaturan profil. Hubungi kami di info@ambildarahku.id untuk pertanyaan lebih lanjut.</p>
+          <p>Anda berhak mengakses, mengoreksi, atau menghapus data Anda kapan saja melalui pengaturan profil. Hubungi kami melalui DM Instagram <a href="https://www.instagram.com/ambildarahku/" target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline">@ambildarahku</a> untuk pertanyaan lebih lanjut.</p>
         </section>
       </div>
     </div>

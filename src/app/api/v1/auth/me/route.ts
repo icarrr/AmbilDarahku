@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
 import { hashPassword } from "@/lib/password";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,15 @@ export async function GET(request: NextRequest) {
     .order("awarded_at", { ascending: false });
 
   const { password_hash, ...safe } = user;
-  return NextResponse.json({ user: safe, badges: userBadges || [] });
+  return NextResponse.json({
+    user: {
+      ...safe,
+      province_name: lookupName(safe.province || ""),
+      city_name: lookupName(safe.city || ""),
+      district_name: lookupName(safe.district || ""),
+    },
+    badges: userBadges || [],
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -50,7 +59,14 @@ export async function PUT(request: NextRequest) {
 
     const { data: user } = await supabase.from("users").select("*").eq("id", auth.userId).maybeSingle();
     const { password_hash, ...safe } = user!;
-    return NextResponse.json({ user: safe });
+    return NextResponse.json({
+      user: {
+        ...safe,
+        province_name: lookupName(safe.province || ""),
+        city_name: lookupName(safe.city || ""),
+        district_name: lookupName(safe.district || ""),
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "update failed" }, { status: 500 });
   }

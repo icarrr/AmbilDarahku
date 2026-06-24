@@ -27,8 +27,6 @@ CREATE TABLE IF NOT EXISTS users (
   province VARCHAR(100) NOT NULL,
   city VARCHAR(100) NOT NULL,
   district VARCHAR(100) NOT NULL,
-  latitude DECIMAL(10,7) NOT NULL DEFAULT 0,
-  longitude DECIMAL(10,7) NOT NULL DEFAULT 0,
   username VARCHAR(50) UNIQUE,
   avatar_url TEXT,
   availability_mode VARCHAR(10) NOT NULL DEFAULT 'automatic',
@@ -52,9 +50,15 @@ CREATE INDEX IF NOT EXISTS idx_users_blood_type ON users(blood_type);
 CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
 CREATE INDEX IF NOT EXISTS idx_users_eligibility ON users(eligibility_status);
 CREATE INDEX IF NOT EXISTS idx_users_availability ON users(availability_status);
-CREATE INDEX IF NOT EXISTS idx_users_coords ON users(latitude, longitude);
+ALTER TABLE IF EXISTS users DROP COLUMN IF EXISTS latitude;
+ALTER TABLE IF EXISTS users DROP COLUMN IF EXISTS longitude;
+ALTER TABLE IF EXISTS blood_requests DROP COLUMN IF EXISTS latitude;
+ALTER TABLE IF EXISTS blood_requests DROP COLUMN IF EXISTS longitude;
+DROP INDEX IF EXISTS idx_users_coords;
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS nik VARCHAR(16) UNIQUE;
+ALTER TABLE IF EXISTS users ALTER COLUMN date_of_birth DROP NOT NULL;
+UPDATE users SET date_of_birth = NULL WHERE date_of_birth = '1990-01-01' AND email LIKE '%@donor.ambildarahku.id';
 
 CREATE TABLE IF NOT EXISTS donor_histories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -102,8 +106,6 @@ CREATE TABLE IF NOT EXISTS blood_requests (
   bags INT NOT NULL,
   fulfilled_bags INT NOT NULL DEFAULT 0,
   urgency VARCHAR(10) NOT NULL,
-  latitude DECIMAL(10,7) NOT NULL DEFAULT 0,
-  longitude DECIMAL(10,7) NOT NULL DEFAULT 0,
   city VARCHAR(100) NOT NULL,
   contact_phone VARCHAR(20) NOT NULL,
   notes TEXT,
@@ -208,6 +210,12 @@ ALTER TABLE IF EXISTS events DROP COLUMN IF EXISTS organizer_id;
 DROP TABLE IF EXISTS event_organizers;
 CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_dedup ON events(source_type, source_id) WHERE source_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS wilayah_regions (
+  code VARCHAR(10) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  jenis INT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS event_sources (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -367,6 +375,11 @@ export async function migrate() {
 
   await seedBadges();
   await seedAdmin();
+
+  // Clean up seeded donor accounts with bot/organization-like names
+  await pool.query(
+    `DELETE FROM users WHERE full_name ~* '\\\\y(unit|komunitas|community|layanan|foundation)\\\\y' AND email LIKE '%@donor.ambildarahku.id'`
+  );
 }
 
 if (process.argv[1]?.endsWith("migrate.ts")) {

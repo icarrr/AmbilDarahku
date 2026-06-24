@@ -76,18 +76,18 @@ export default function RequestsPage() {
         </Button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <input
           type="text"
           placeholder="Cari nama pasien..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:max-w-xs"
+          className="h-8 min-w-0 w-full sm:flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:max-w-xs"
         />
         <select
           value={hospitalFilter}
           onChange={e => setHospitalFilter(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
+          className="h-8 w-full sm:w-auto rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring"
         >
           <option value="">Semua RS</option>
           {hospitals.map(h => <option key={h} value={h}>{h}</option>)}
@@ -102,7 +102,7 @@ export default function RequestsPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           {[1,2,3].map(i => <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}><SkeletonCard /></div>)}
         </div>
       ) : filtered.length === 0 ? (
@@ -115,7 +115,7 @@ export default function RequestsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           {filtered.map((req, i) => (
             <div key={req.id} onClick={() => router.push(`/requests/share/${req.id}`)} className={`cursor-pointer animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <GlassCard>
@@ -146,7 +146,14 @@ export default function RequestsPage() {
                       </div>
                       {req.contact_phone && (
                         <a
-                          href={`https://wa.me/${req.contact_phone}`}
+                          href={`https://wa.me/${req.contact_phone}?text=${encodeURIComponent(
+                            `Halo, saya ingin membantu donor darah untuk:\n\n` +
+                            `\u{1FA78} Golongan Darah: ${req.blood_type}\n` +
+                            `\u{1F464} Pasien: ${req.patient_name}\n` +
+                            `\u{1F3E5} Rumah Sakit: ${req.hospital}${req.city ? `, ${req.city}` : ""}\n` +
+                            `\u{1F4E6} Kebutuhan: ${req.bags} kantong (${req.bags - (req.fulfilled_bags || 0)} tersisa)\n` +
+                            `Mohon info lebih lanjut. Terima kasih.`
+                          )}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"

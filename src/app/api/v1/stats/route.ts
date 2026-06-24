@@ -15,7 +15,6 @@ export async function GET() {
     stats: {
       active_donors: active || 0,
       lives_saved: totalDonations,
-      partner_hospitals: 450,
       cities_reached: citiesReached,
     },
   });

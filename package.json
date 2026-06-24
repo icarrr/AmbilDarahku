@@ -11,7 +11,9 @@
     "reset": "npx tsx scripts/reset-db.ts",
     "seed": "npx tsx scripts/seed-dev.ts",
     "seed:prod-like": "npx tsx scripts/seed-production-like.ts",
-    "discover": "npx tsx scripts/discover-events.ts"
+    "discover": "npx tsx scripts/discover-events.ts",
+    "seed-wilayah": "npx tsx scripts/seed-wilayah.ts",
+"seed-profiles": "npx tsx scripts/seed-profiles.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/glass-card";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { Droplets, Search, MapPin, ShieldCheck, MessageCircle, Award, ExternalLink, Calendar } from "lucide-react";
+import { supabase } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "AmbilDarahku — Temukan Donor Darah Lebih Cepat",
@@ -21,6 +22,31 @@ function formatStat(n: number): string {
   return `${n}+`;
 }
 
+function formatEventDate(dateStr: string): { day: string; month: string } {
+  const d = new Date(dateStr);
+  const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+  return {
+    day: String(d.getDate()).padStart(2, "0"),
+    month: months[d.getMonth()],
+  };
+}
+
+async function getUpcomingEvents() {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const { data } = await supabase
+      .from("events")
+      .select("title, location, city, event_date, start_time, end_time")
+      .eq("status", "upcoming")
+      .gte("event_date", today)
+      .order("event_date", { ascending: true })
+      .limit(3);
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
 async function getStats() {
   try {
     const res = await fetch(`${API_BASE}/stats`, { cache: "no-store" });
@@ -33,11 +59,11 @@ async function getStats() {
 
 export default async function LandingPage() {
   const stats = await getStats();
+  const events = await getUpcomingEvents();
 
   const statCards = [
     { value: stats.active_donors > 0 ? formatStat(stats.active_donors) : "12k+", label: "Donor Aktif", icon: <Droplets className="h-4 w-4" /> },
     { value: stats.lives_saved > 0 ? formatStat(stats.lives_saved) : "8.5k", label: "Nyawa Terselamatkan", icon: <Award className="h-4 w-4" /> },
-    { value: stats.partner_hospitals > 0 ? formatStat(stats.partner_hospitals) : "450", label: "Rumah Sakit Mitra", icon: <MapPin className="h-4 w-4" /> },
     { value: stats.cities_reached > 0 ? formatStat(stats.cities_reached) : "15", label: "Kota Terjangkau", icon: <Calendar className="h-4 w-4" /> },
   ];
 
@@ -76,6 +102,7 @@ export default async function LandingPage() {
             </div>
             <div className="mt-10 hidden md:flex md:flex-1 md:items-center md:justify-center">
               <div className="grid grid-cols-2 gap-4">
+                <BloodTypeBadge type="A+" size="lg" className="text-2xl px-6 py-4" />
                 <BloodTypeBadge type="O+" size="lg" className="text-2xl px-6 py-4" />
                 <BloodTypeBadge type="AB-" size="lg" className="text-2xl px-6 py-4" />
                 <BloodTypeBadge type="B+" size="lg" className="text-2xl px-6 py-4" />
@@ -86,7 +113,7 @@ export default async function LandingPage() {
       </section>
 
       <section className="px-5 pb-12">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-3 md:grid-cols-3 md:gap-6">
           {statCards.map((stat, i) => (
             <GlassCard key={stat.label} className={`text-center animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600">
@@ -194,26 +221,31 @@ export default async function LandingPage() {
             </Link>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {[
-              { date: "24 OKT", title: "Bhakti Sosial Kesehatan Jakarta", loc: "Balai Kota, Jakarta Pusat", time: "8:00 - 14:00 WIB" },
-              { date: "27 OKT", title: "Donor Darah RS Harapan Kita", loc: "RS Harapan Kita, Slipi", time: "09:00 - 15:00 WIB" },
-              { date: "02 NOV", title: "AmbilDarahku Community Meetup", loc: "Co-working Space, BSD City", time: "13:00 - 17:00 WIB" },
-            ].map((event) => (
-              <GlassCard key={event.date} className="flex gap-4">
-                <div className="flex flex-col items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-center">
-                  <span className="text-xs font-bold text-red-600">{event.date.split(" ")[0]}</span>
-                  <span className="text-sm font-bold text-red-600">{event.date.split(" ")[1]}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{event.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{event.loc}</p>
-                  <p className="text-xs text-[#94a3b8]">{event.time}</p>
-                    <button className="mt-2 rounded-lg bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700">
-                      Ikuti
-                    </button>
-                </div>
+            {events.length > 0 ? events.map((event: any) => {
+              const fd = formatEventDate(event.event_date);
+              const loc = [event.location, event.city].filter(Boolean).join(", ");
+              const time = [event.start_time, event.end_time].filter(Boolean).join(" - ");
+              return (
+                <Link key={event.event_date + event.title} href="/events" className="block cursor-pointer">
+                  <GlassCard className="flex gap-4">
+                    <div className="flex flex-col items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-center">
+                      <span className="text-xs font-bold text-red-600">{fd.day}</span>
+                      <span className="text-sm font-bold text-red-600">{fd.month}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{event.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{loc}</p>
+                      <p className="text-xs text-[#94a3b8]">{time}</p>
+                    </div>
+                  </GlassCard>
+                </Link>
+              );
+            }) : (
+              <GlassCard className="col-span-full py-8 text-center">
+                <Calendar className="mx-auto h-8 w-8 text-gray-300" />
+                <p className="mt-2 text-sm text-muted-foreground">Belum ada event donor terdekat.</p>
               </GlassCard>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -264,7 +296,7 @@ export default async function LandingPage() {
               <div>
                 <h4 className="mb-3 text-sm font-semibold text-foreground">Kontak</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="mailto:info@ambildarahku.id" className="hover:text-red-600">info@ambildarahku.id</a></li>
+                  <li><a href="https://www.instagram.com/ambildarahku/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600">@ambildarahku</a></li>
                   <li><a href="tel:+62215551234" className="hover:text-red-600">+62 21 555 1234</a></li>
                 </ul>
               </div>
