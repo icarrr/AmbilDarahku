@@ -25,7 +25,11 @@ export async function GET(request: NextRequest) {
     if (/^\d+$/.test(city)) {
       query = query.eq("city", city);
     } else {
-      query = query.ilike("city", city);
+      const matched = searchWilayah(city, 2);
+      const ids = matched.map((m) => m.id);
+      if (ids.length > 0) {
+        query = query.in("city", ids);
+      }
     }
   }
   if (cityName) {
