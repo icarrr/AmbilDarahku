@@ -8,6 +8,15 @@ export const runtime = "nodejs";
 export const revalidate = 60;
 
 export async function GET() {
+  // Build-time / CI guard: no Supabase env → skip querying so static
+  // prerender succeeds. Zeroed stats fall back to styled defaults on the
+  // landing page; Vercel prod builds (env present) bake real numbers.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return NextResponse.json({
+      stats: { active_donors: 0, lives_saved: 0, cities_reached: 0 },
+    });
+  }
+
   const { count: active } = await supabase
     .from("users")
     .select("*", { count: "exact", head: true })

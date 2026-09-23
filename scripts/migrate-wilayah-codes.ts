@@ -6,6 +6,7 @@
 // Run AFTER scripts/split-wilayah.ts:  npx tsx scripts/migrate-wilayah-codes.ts
 // (also available as: npm run migrate:wilayah)
 
+import "dotenv/config";
 import { Pool } from "pg";
 import * as fs from "fs";
 import * as path from "path";

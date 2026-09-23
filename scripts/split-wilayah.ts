@@ -14,6 +14,7 @@
 //
 // Run: npx tsx scripts/split-wilayah.ts
 
+import "dotenv/config";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "fs";
 import path from "path";
 

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Pool } from "pg";
 import axios from "axios";
 import bcrypt from "bcryptjs";
