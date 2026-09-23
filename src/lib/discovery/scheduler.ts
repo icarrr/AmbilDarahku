@@ -27,14 +27,24 @@ export function isSchedulerAuthorized(request: NextRequest): boolean {
 }
 
 /**
- * Vercel Cron trigger. The x-vercel-cron header is injected by the hosting
- * platform itself and stripped from client requests — matching the configured
- * expression is sufficient auth (no secret over the wire).
- * Configured via vercel.json (crons → /api/v1/discover).
+ * Vercel Cron trigger. Vercel fires a GET request with:
+ *   - `x-vercel-cron-schedule` header = the configured cron expression
+ *   - `Authorization: Bearer ${CRON_SECRET}` when CRON_SECRET env var is set
+ *     on the project (auto-injected by Vercel, stripped from client requests).
+ * Verifying both the schedule header and the bearer secret is sufficient
+ * auth — no admin JWT, no browser headers.
  */
 export function isVercelCron(request: NextRequest): boolean {
-  const expr = process.env.VERCEL_CRON_EXPR || "0 * * * *";
-  return request.headers.get("x-vercel-cron") === expr;
+  const schedule = request.headers.get("x-vercel-cron-schedule");
+  if (!schedule) return false;
+
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const auth = request.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) return false;
+
+  const expr = process.env.VERCEL_CRON_EXPR || "0 18 * * *";
+  return schedule === expr;
 }
 
 /**

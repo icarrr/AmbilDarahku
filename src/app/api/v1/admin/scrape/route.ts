@@ -39,19 +39,21 @@ export async function GET(request: NextRequest) {
     let cronJob: Record<string, unknown> | null = null;
     let cronRuns: Record<string, unknown>[] = [];
     try {
-      const [{ rows: j }, { rows: jr }] = await Promise.all([
-        pool.query(
-          `SELECT jobname, schedule, command, active
-           FROM cron.job WHERE jobname = 'adk-scrape'`
-        ),
-        pool.query(
-          `SELECT status, return_message, start_time, end_time
-           FROM cron.job_run_details WHERE jobname = 'adk-scrape'
-           ORDER BY start_time DESC LIMIT 5`
-        ),
-      ]);
+      const { rows: j } = await pool.query(
+        `SELECT jobid, jobname, schedule, command, active
+         FROM cron.job WHERE jobname = 'adk-scrape'`
+      );
       cronJob = j[0] || null;
-      cronRuns = jr;
+      if (cronJob) {
+        // job_run_details has no jobname column — filter by jobid
+        const { rows: jr } = await pool.query(
+          `SELECT status, return_message, start_time, end_time
+           FROM cron.job_run_details WHERE jobid = $1
+           ORDER BY start_time DESC LIMIT 5`,
+          [cronJob.jobid]
+        );
+        cronRuns = jr;
+      }
     } catch {
       // pg_cron not installed — fine, Vercel Cron covers scheduling
     }

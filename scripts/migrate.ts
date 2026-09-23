@@ -417,9 +417,9 @@ export async function seedAdmin() {
 }
 
 function cronExpression(intervalMinutes: number): string {
-  if (intervalMinutes < 60) return `*/${intervalMinutes} * * * *`;
-  const hours = Math.floor(intervalMinutes / 60);
-  return intervalMinutes % 60 === 0 ? `0 */${hours} * * *` : `*/${intervalMinutes} * * * *`;
+  const minutes = Math.max(intervalMinutes, 60);
+  const hours = Math.floor(minutes / 60);
+  return minutes % 60 === 0 ? `0 */${hours} * * *` : `*/${minutes} * * * *`;
 }
 
 /**
@@ -455,7 +455,9 @@ export async function scheduleScrapeCron() {
   await pool.query(
     `SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'adk-scrape'`
   );
-  const command = `net.http_post(url := '${targetUrl}', headers := jsonb_build_object('authorization', 'Bearer ${secret}', 'x-scheduled', 'true'), body := jsonb_build_object('trigger', 'scheduler'), timeout_milliseconds := 300000)`;
+  // pg_cron runs the command as raw SQL — pg_net requires a full statement
+  // (SELECT net.http_post(...)), not a bare function call.
+  const command = `SELECT net.http_post(url := '${targetUrl}', headers := jsonb_build_object('authorization', 'Bearer ${secret}', 'x-scheduled', 'true'), body := jsonb_build_object('trigger', 'scheduler'), timeout_milliseconds := 300000)`;
   await pool.query(
     `SELECT cron.schedule('adk-scrape', $1, $2)`,
     [cronExpr, command]
