@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useWilayah } from "@/lib/hooks/useWilayah";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
+import { coordinatorWaLink } from "@/lib/coordinator";
 import {
   Award, Bell,
   CalendarDays, Camera, ChevronRight,
@@ -52,7 +53,6 @@ type UrgentRequest = {
   city: string;
   urgency: string;
   notes?: string;
-  contact_phone: string;
 };
 
 export default function ProfilePage() {
@@ -71,6 +71,8 @@ export default function ProfilePage() {
     province: "", district: "", blood_type: "", date_of_birth: "", gender: "",
     latitude: "", longitude: "", weight_kg: "", height_cm: "",
   });
+  const [contactConsent, setContactConsent] = useState(false);
+  const [consentLoading, setConsentLoading] = useState(false);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [pwForm, setPwForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
@@ -83,6 +85,7 @@ export default function ProfilePage() {
       .catch(() => {});
     api.get<DonorStatus>("/donor-status").then(setStatus).catch(() => {});
     api.get<{ requests: UrgentRequest[] }>("/requests?urgency=critical,urgent&limit=5").then(d => setUrgentRequests(d.requests || [])).catch(() => {});
+    setContactConsent(Boolean(user.contact_consent));
     setForm({
       full_name: user.full_name, phone: user.phone, city: user.city, username: user.username || "",
       province: user.province || "", district: user.district || "",
@@ -366,15 +369,22 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="mt-3">
-                      <a
-                        href={`https://wa.me/${req.contact_phone}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-600"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Hubungi Koordinator
-                      </a>
+                      {(() => {
+                        const wa = coordinatorWaLink(
+                          `Halo, saya ingin membantu donor darah untuk pasien di ${req.hospital} (${req.city}). Golongan darah ${req.blood_type}.`
+                        );
+                        return wa ? (
+                          <a
+                            href={wa}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-600"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Hubungi Koordinator
+                          </a>
+                        ) : null;
+                      })()}
                     </div>
                   </GlassCard>
                 ))}
@@ -492,6 +502,34 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <Button onClick={updateProfile}>Simpan</Button>
+                <div className="mt-4 flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Bersedia dihubungi</p>
+                    <p className="text-xs text-muted-foreground">Saya bersedia menerima permintaan donor melalui aplikasi/koordinator.</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={contactConsent}
+                    onClick={async () => {
+                      setConsentLoading(true);
+                      try {
+                        setContactConsent(!contactConsent);
+                        await api.put("/auth/me", { contact_consent: !contactConsent });
+                        toast.success("Preferensi kontak diperbarui");
+                      } catch {
+                        setContactConsent(contactConsent);
+                        toast.error("Gagal memperbarui preferensi");
+                      } finally {
+                        setConsentLoading(false);
+                      }
+                    }}
+                    disabled={consentLoading}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${contactConsent ? "bg-emerald-500" : "bg-gray-300"}`}
+                  >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${contactConsent ? "left-[22px]" : "left-0.5"}`} />
+                  </button>
+                </div>
               </div>
             )}
             {!editing && (

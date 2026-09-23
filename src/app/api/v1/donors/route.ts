@@ -3,6 +3,8 @@ import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext } from "@/lib/auth-middleware";
 import { getSearchPriority } from "@/lib/eligibility";
 import { lookupName, searchWilayah } from "@/lib/data/wilayah";
+import { hitLimit, clampLimit } from "@/lib/rate-limit";
+import { PUBLIC_USER_FIELDS } from "@/lib/privacy";
 
 export const runtime = "nodejs";
 
@@ -10,14 +12,21 @@ export async function GET(request: NextRequest) {
   const auth = requireAuth(request);
   if (!isAuthContext(auth)) return auth;
 
+  const limited = hitLimit(request);
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const bloodType = url.searchParams.get("blood_type");
   const city = url.searchParams.get("city");
   const cityName = url.searchParams.get("city_name");
   const availabilityStatus = url.searchParams.get("availability_status");
   const compatibleWith = url.searchParams.get("compatible_with");
+  const limit = clampLimit(url.searchParams.get("limit"), 20, 30);
 
-  let query = supabase.from("users").select("*").eq("role", "donor");
+  let query = supabase
+    .from("users")
+    .select(PUBLIC_USER_FIELDS.join(","))
+    .eq("role", "donor");
 
   if (bloodType) query = query.eq("blood_type", bloodType);
   // city param: if numeric, treat as ID exact match; otherwise text search
@@ -43,15 +52,13 @@ export async function GET(request: NextRequest) {
 
   query = query.order("total_donations", { ascending: false });
 
-  const limitParam = url.searchParams.get("limit");
-  const limit = limitParam ? parseInt(limitParam, 10) : NaN;
-  if (!isNaN(limit) && limit > 0) query = query.limit(limit);
+  query = query.limit(limit);
 
   const { data: donors } = await query;
 
   const results = (donors || []).map((d: any) => {
     const priority = getSearchPriority(d.eligibility_status, d.availability_status, d.ready_again_date);
-    const { password_hash, email, ...safe } = d;
+    const { password_hash, email, phone, ...safe } = d;
     const buttonState = priority === 1 ? "enabled" : "disabled";
     let reason = "";
     if (buttonState === "disabled") {

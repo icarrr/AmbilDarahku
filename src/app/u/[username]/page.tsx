@@ -8,6 +8,7 @@ import { GlassCard } from "@/components/glass-card";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
 import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck } from "lucide-react";
 import { lookupName } from "@/lib/data/wilayah";
+import { toPublicUser } from "@/lib/privacy";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -53,13 +54,13 @@ type PublicProfile = {
   blood_type: string;
   city: string;
   city_name?: string;
-  weight_kg: number;
+  weight_kg?: number;
   total_donations: number;
   total_points: number;
   availability_status: string;
   eligibility_status: string;
   last_donation_date?: string;
-  gender: string;
+  gender?: string;
   badges: UserBadge[];
   national_donor_id?: string;
   donation_volume_total?: number;
@@ -89,14 +90,13 @@ async function getProfile(username: string): Promise<PublicProfile | null> {
       .eq("user_id", user.id)
       .order("awarded_at", { ascending: false });
 
-    const { password_hash, email, phone, ...safe } = user;
     return {
-      ...safe,
+      ...toPublicUser(user as Record<string, unknown>),
       badges: (userBadges || []).map((ub: any) => ({
         id: ub.id,
         badge: ub.badges,
       })),
-    };
+    } as PublicProfile;
   } catch {
     return null;
   }

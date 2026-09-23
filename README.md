@@ -127,7 +127,7 @@ Supports direct Vercel deployment (Hobby plan) and Docker Compose (postgres + fr
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Anon/public key |
 | `JWT_SECRET` | Yes | HMAC signing key |
 | `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob token |
-| `CRON_SECRET` | For cron | Bearer token for Vercel Cron jobs |
+| `CRON_SECRET` | For scheduler | Bearer token required by pg_cron→pg_net scheduled trigger |
 | `SMTP_HOST` | For email | SMTP server (empty = skip emails) |
 | `SMTP_PORT` | No | Default: 587 |
 | `SMTP_USER` | For email | SMTP username |
@@ -153,6 +153,6 @@ Supports direct Vercel deployment (Hobby plan) and Docker Compose (postgres + fr
 - UI language: Indonesian (`id-ID`), code: English
 - `pg` is devDependency only for migration script
 - Blood request dedup via `(source_type, source_request_id)` unique index
-- Vercel Hobby cron: `/api/v1/discover` runs `0 * * * *` (events + blood requests + profiles combined)
+- Automatic scraping: Supabase-native scheduler (pg_cron + pg_net) POSTs to `/api/v1/discover` hourly — no external cron, no Vercel Cron. Enabled by setting `SCRAPE_TARGET_URL` + `CRON_SECRET`, interval via `SCRAPE_INTERVAL_MINUTES` (default 60). Run history + locking in `scrape_jobs` / `scrape_runs`, monitored on admin dashboard
 - Maintenance mode: Edge middleware with allowlist for admin/auth/login paths
 - Partner: Kawan Sedarah (logo on homepage "Partner Kami" section, links to Instagram)

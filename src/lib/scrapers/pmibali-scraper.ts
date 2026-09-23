@@ -51,7 +51,7 @@ export async function scrapePmiBali(
   let response;
   try {
     response = await axios.get("https://pmibali.online", {
-      timeout: 15000,
+      timeout: 20000,
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; AmbilDarahkuBot/1.0; +https://ambildarahku.id)",
         Accept: "text/html,application/xhtml+xml",

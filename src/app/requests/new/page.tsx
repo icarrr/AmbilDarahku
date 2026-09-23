@@ -40,6 +40,7 @@ function NewRequestForm() {
     notes: "",
     urgency: "critical",
   });
+  const [contactConsent, setContactConsent] = useState(Boolean(user?.contact_consent));
 
   useEffect(() => {
     let bt = searchParams?.get?.("blood_type");
@@ -60,12 +61,18 @@ function NewRequestForm() {
       toast.error("Lengkapi data utama (nama, golongan darah, rumah sakit)");
       return;
     }
+    if (!contactConsent) {
+      toast.error("Centang persetujuan kontak untuk melanjutkan");
+      return;
+    }
     setSubmitting(true);
     try {
       const { request } = await api.post<{ request: { id: string } }>("/requests", {
         ...form,
         bags: parseInt(form.bags),
       });
+      // Reconfirm consent server-side (the requester is the contactable party)
+      await api.put("/auth/me", { contact_consent: true });
       toast.success("Permintaan darurat terkirim!");
       router.push(`/requests/share/${request.id}`);
     } catch {
@@ -220,6 +227,20 @@ function NewRequestForm() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={contactConsent}
+              onChange={(e) => setContactConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-emerald-600"
+            />
+            <span>
+              Saya bersedia dihubungi melalui aplikasi terkait kebutuhan donor ini. Nomor kontak hanya digunakan oleh koordinator untuk mempertemukan pendonor.
+            </span>
+          </label>
         </div>
 
         <Button

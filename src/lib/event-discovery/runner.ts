@@ -68,10 +68,15 @@ async function fetchSources(pool: Pool): Promise<SourceConfig[]> {
 async function scrapeSource(source: SourceConfig): Promise<{ events: ScrapedEvent[]; error?: string }> {
   try {
     if (source.sourceType === "ayodonor") {
+      // Parallel province fetch — sequential 37× killed run time
       const all: ScrapedEvent[] = [];
-      for (const province of PROVINCES_FOR_AYODONOR) {
-        const events = await scrapeAyodonor(province, source.detectionKeywords);
-        all.push(...events);
+      const PROV_CONCURRENCY = 5;
+      for (let i = 0; i < PROVINCES_FOR_AYODONOR.length; i += PROV_CONCURRENCY) {
+        const batch = PROVINCES_FOR_AYODONOR.slice(i, i + PROV_CONCURRENCY);
+        const results = await Promise.all(batch.map((province) =>
+          scrapeAyodonor(province, source.detectionKeywords).catch(() => [] as ScrapedEvent[])
+        ));
+        for (const r of results) all.push(...r);
       }
       return { events: all };
     }
@@ -95,8 +100,8 @@ async function scrapeSource(source: SourceConfig): Promise<{ events: ScrapedEven
 
       do {
         const headers: Record<string, string> = {
-          apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydW1idHNmcnF2bm1kcGV6bG90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTY0MzYsImV4cCI6MjA5MjIzMjQzNn0.xrk5qWUbr4JoaPBW5NdJlqT3AyBHdTS9a4ifami3vuo",
-          Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydW1idHNmcnF2bm1kcGV6bG90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTY0MzYsImV4cCI6MjA5MjIzMjQzNn0.xrk5qWUbr4JoaPBW5NdJlqT3AyBHdTS9a4ifami3vuo",
+          apikey: process.env.KS_ANON_KEY || "",
+          Authorization: `Bearer ${process.env.KS_ANON_KEY || ""}`,
           "Accept-Profile": "public",
         };
         if (offset === 0) {
@@ -186,7 +191,8 @@ async function updateSourceScrapeStatus(pool: Pool, id: string, scrapedAt: Date,
 }
 
 async function downloadEventImages(events: ScrapedEvent[]) {
-  const IMAGE_CONCURRENCY = 3;
+  const IMAGE_CONCURRENCY = 6;
+  const IMAGE_TIMEOUT_MS = 8000;
   const withImages = events.filter(e => e.rawData?.image_url && !e.posterUrl);
   for (let i = 0; i < withImages.length; i += IMAGE_CONCURRENCY) {
     const batch = withImages.slice(i, i + IMAGE_CONCURRENCY);
@@ -196,7 +202,7 @@ async function downloadEventImages(events: ScrapedEvent[]) {
         if (!url || typeof url !== "string") return;
         const imgRes = await axios.get(url, {
           responseType: "arraybuffer",
-          timeout: 15000,
+          timeout: IMAGE_TIMEOUT_MS,
         });
         const buffer = Buffer.from(imgRes.data);
         const contentType = String(imgRes.headers["content-type"] || "image/webp");
@@ -213,13 +219,20 @@ async function downloadEventImages(events: ScrapedEvent[]) {
 }
 
 async function backfillMissingPosters(pool: Pool) {
+  // Bound scope: recent non-archived events only, capped each run — avoids
+  // re-scanning/rescanning the whole table on every hourly cycle.
   const { rows } = await pool.query(
-    `SELECT id, raw_data FROM events WHERE poster_url IS NULL AND raw_data IS NOT NULL AND raw_data->>'image_url' != ''`
+    `SELECT id, raw_data FROM events
+     WHERE poster_url IS NULL AND is_archived = false
+       AND raw_data IS NOT NULL AND raw_data->>'image_url' != ''
+       AND created_at >= NOW() - interval '30 days'
+     ORDER BY created_at DESC
+     LIMIT 100`
   );
   if (rows.length === 0) return;
   console.log(`Backfilling ${rows.length} missing poster images...`);
 
-  const IMAGE_CONCURRENCY = 3;
+  const IMAGE_CONCURRENCY = 6;
   for (let i = 0; i < rows.length; i += IMAGE_CONCURRENCY) {
     const batch = rows.slice(i, i + IMAGE_CONCURRENCY);
     await Promise.all(batch.map(async (row: any) => {
@@ -228,7 +241,7 @@ async function backfillMissingPosters(pool: Pool) {
         const url = rawData?.image_url;
         if (!url || typeof url !== "string") return;
 
-        const imgRes = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
+        const imgRes = await axios.get(url, { responseType: "arraybuffer", timeout: 8000 });
         const buffer = Buffer.from(imgRes.data);
         const contentType = String(imgRes.headers["content-type"] || "image/webp");
         const originalName = url.split("/").filter(Boolean).pop() || `image.${contentType.includes("png") ? "png" : "webp"}`;

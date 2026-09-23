@@ -7,9 +7,11 @@ import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { UrgencyBadge } from "@/components/urgency-badge";
 import { Button } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/skeleton";
-import { Droplets, MapPin, Plus, Clock, AlertTriangle, MessageCircle } from "lucide-react";
+import { Droplets, MapPin, Plus, Clock, AlertTriangle, MessageCircle, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { coordinatorWaLink } from "@/lib/coordinator";
+import { ReportDialog } from "@/components/report-dialog";
 
 type BloodRequest = {
   id: string;
@@ -20,7 +22,6 @@ type BloodRequest = {
   urgency: string;
   bags: number;
   fulfilled_bags: number;
-  contact_phone?: string;
   notes?: string;
   created_at: string;
   status?: string;
@@ -144,25 +145,35 @@ export default function RequestsPage() {
                         </span>
                         <span>{req.fulfilled_bags || 0}/{req.bags} &middot; {req.bags - (req.fulfilled_bags || 0)} sisa</span>
                       </div>
-                      {req.contact_phone && (
-                        <a
-                          href={`https://wa.me/${req.contact_phone}?text=${encodeURIComponent(
-                            `Halo, saya ingin membantu donor darah untuk:\n\n` +
-                            `\u{1FA78} Golongan Darah: ${req.blood_type}\n` +
-                            `\u{1F464} Pasien: ${req.patient_name}\n` +
-                            `\u{1F3E5} Rumah Sakit: ${req.hospital}${req.city ? `, ${req.city}` : ""}\n` +
-                            `\u{1F4E6} Kebutuhan: ${req.bags} kantong (${req.bags - (req.fulfilled_bags || 0)} tersisa)\n` +
-                            `Mohon info lebih lanjut. Terima kasih.`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <MessageCircle className="h-3 w-3" />
-                          {req.contact_phone}
-                        </a>
-                      )}
+                      {(() => {
+                        const wa = coordinatorWaLink(
+                          `Halo, saya ingin membantu donor darah untuk:\n\n` +
+                          `\u{1FA78} Golongan Darah: ${req.blood_type}\n` +
+                          `\u{1F464} Pasien: ${req.patient_name}\n` +
+                          `\u{1F3E5} Rumah Sakit: ${req.hospital}${req.city ? `, ${req.city}` : ""}\n` +
+                          `\u{1F4E6} Kebutuhan: ${req.bags} kantong (${req.bags - (req.fulfilled_bags || 0)} tersisa)\n` +
+                          `Mohon info lebih lanjut. Terima kasih.`
+                        );
+                        return wa ? (
+                          <a
+                            href={wa}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                            Hubungi Koordinator
+                          </a>
+                        ) : null;
+                      })()}
+                      <span onClick={e => e.stopPropagation()} className="mt-0.5 inline-block">
+                        <ReportDialog targetType="blood_request" targetId={req.id} />
+                      </span>
+                      <div className="mt-1 flex items-start gap-1 text-[10px] text-amber-700">
+                        <ShieldAlert className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                        <span>Donor darah tidak dipungut biaya. Jangan berikan uang kepada siapa pun.</span>
+                      </div>
                       {(req.fulfilled_bags || 0) > 0 && (
                         <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-gray-100">
                           <div

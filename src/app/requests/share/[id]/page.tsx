@@ -8,11 +8,13 @@ import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/glass-card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle, Share2, Camera, Copy, Check } from "lucide-react";
+import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle, Share2, Camera, Copy, Check, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAppUrl } from "@/lib/url";
 import { toast } from "sonner";
 import { toBlob } from "html-to-image";
+import { coordinatorWaLink } from "@/lib/coordinator";
+import { ReportDialog } from "@/components/report-dialog";
 
 type BloodRequest = {
   id: string;
@@ -24,7 +26,6 @@ type BloodRequest = {
   urgency: string;
   bags: number;
   fulfilled_bags: number;
-  contact_phone?: string;
   notes?: string;
   status: string;
 };
@@ -64,7 +65,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
         await navigator.share({
           files: [file],
           title: "Permintaan Donor Darah",
-          text: `Butuh donor darah ${bloodDisplay} untuk ${request.patient_name} di ${request.hospital} | Hubungi https://wa.me/${request.contact_phone}`,
+          text: `Butuh donor darah ${bloodDisplay} untuk ${request.patient_name} di ${request.hospital}`,
         });
       } else {
         // Fallback: download image
@@ -266,31 +267,45 @@ ${pageUrl}`;
             </div>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Hubungi / Scan</p>
-              {request.contact_phone ? (
-                <a
-                  href={`https://wa.me/${request.contact_phone}?text=${encodeURIComponent(
-                    `Halo, saya ingin membantu donor darah untuk:\n\n` +
-                    `🩸 Golongan Darah: ${bloodDisplay}\n` +
-                    `👤 Pasien: ${request.patient_name}\n` +
-                    `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}\n` +
-                    `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
-                    `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
-                    `Mohon info lebih lanjut. Terima kasih.`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-600"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  {request.contact_phone}
-                </a>
-              ) : (
-                <p className="text-[10px] text-[#94a3b8]">Scan QR untuk membuka halaman permintaan</p>
-              )}
+              {(() => {
+                const wa = coordinatorWaLink(
+                  `Halo, saya ingin membantu donor darah untuk:\n\n` +
+                  `🩸 Golongan Darah: ${bloodDisplay}\n` +
+                  `👤 Pasien: ${request.patient_name}\n` +
+                  `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}\n` +
+                  `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
+                  `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
+                  `Mohon info lebih lanjut. Terima kasih.`
+                );
+                return wa ? (
+                  <a
+                    href={wa}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-600"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Hubungi Koordinator
+                  </a>
+                ) : (
+                  <p className="text-[10px] text-[#94a3b8]">Hubungi koordinator untuk info lebih lanjut</p>
+                );
+              })()}
             </div>
           </div>
         </div>
         </div>
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+        <span>
+          Perhatian: donor darah melalui aplikasi ini tidak dipungut biaya. Jangan memberikan uang kepada pihak yang mengatasnamakan donor atau aplikasi ini.
+        </span>
+      </div>
+
+      <div className="mt-2 flex justify-center">
+        <ReportDialog targetType="blood_request" targetId={request.id} />
       </div>
 
       {/* Share buttons */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkPMIOrAdmin } from "@/lib/auth-middleware";
+import { signBlobUrl } from "@/lib/file";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
   const userMap = new Map((users || []).map((u: any) => [u.id, u]));
   const mapped = (claims || []).map((c: any) => ({
     ...c,
+    proof_photo_url: signBlobUrl(c.proof_photo_url),
+    proof_document_url: signBlobUrl(c.proof_document_url),
     user_name: userMap.get(c.user_id)?.full_name,
     user_email: userMap.get(c.user_id)?.email,
     user_phone: userMap.get(c.user_id)?.phone,

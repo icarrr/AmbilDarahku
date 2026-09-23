@@ -12,6 +12,8 @@
     "seed": "npx tsx scripts/seed-dev.ts",
     "seed:prod-like": "npx tsx scripts/seed-production-like.ts",
     "discover": "npx tsx scripts/discover-events.ts",
+    "test:scrape-lock": "npx tsx scripts/test-scrape-lock.ts",
+    "test:privacy": "npx tsx scripts/test-privacy.ts",
     "seed-wilayah": "npx tsx scripts/seed-wilayah.ts",
     "seed-profiles": "npx tsx scripts/seed-profiles.ts"
   },

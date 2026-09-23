@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkAdmin } from "@/lib/auth-middleware";
 import { SEED_SOURCES } from "@/lib/scrapers/source-registry";
+import { hitLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = hitLimit(request);
+  if (limited) return limited;
+
   const { data: sources, error } = await supabase
     .from("event_sources")
     .select("*")

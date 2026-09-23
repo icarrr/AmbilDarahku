@@ -1,34 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { discoverEvents } from "@/lib/event-discovery/runner";
-import { discoverBloodRequests } from "@/lib/blood-request-discovery/runner";
-import { discoverProfiles } from "@/lib/profile-discovery/runner";
+import { runDiscovery, isSchedulerAuthorized } from "@/lib/discovery/scheduler";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  // Vercel Cron trigger — run both
-  if (request.headers.get("x-vercel-cron")) {
-    const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const auth = request.headers.get("authorization") || "";
-      if (auth !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-    }
+  const isScheduled = isSchedulerAuthorized(request);
+
+  if (isScheduled) {
     try {
-      const [events, blood, profiles] = await Promise.all([
-        discoverEvents(),
-        discoverBloodRequests(),
-        discoverProfiles(),
-      ]);
-      return NextResponse.json({ events, bloodRequests: blood, profiles });
+      const result = await runDiscovery("scheduler");
+      if ("conflicting" in result) {
+        return NextResponse.json({ error: "Scrape is already running." }, { status: 409 });
+      }
+      return NextResponse.json(result);
     } catch (err: any) {
       return NextResponse.json({ error: err.message || "discovery failed" }, { status: 500 });
     }
   }
 
-  // Manual trigger via admin UI — run both
+  // Manual trigger via admin UI — same scrape service
   const { requireAuth, isAuthContext, checkAdmin } = await import("@/lib/auth-middleware");
   const auth = requireAuth(request);
   if (!isAuthContext(auth)) return auth;
@@ -37,12 +28,11 @@ export async function POST(request: NextRequest) {
   if (admin) return admin;
 
   try {
-    const [events, blood, profiles] = await Promise.all([
-      discoverEvents(),
-      discoverBloodRequests(),
-      discoverProfiles(),
-    ]);
-    return NextResponse.json({ events, bloodRequests: blood, profiles });
+    const result = await runDiscovery("manual");
+    if ("conflicting" in result) {
+      return NextResponse.json({ error: "Scrape is already running." }, { status: 409 });
+    }
+    return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "discovery failed" }, { status: 500 });
   }

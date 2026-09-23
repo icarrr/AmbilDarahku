@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
+import { signBlobUrl } from "@/lib/file";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,14 @@ export async function GET(request: NextRequest) {
     .eq("user_id", auth.userId)
     .order("donation_date", { ascending: false });
 
-  return NextResponse.json({ histories: histories || [] });
+  const safe = (histories || []).map((h: any) => ({
+    ...h,
+    proof_photo: signBlobUrl(h.proof_photo),
+    proof_card: signBlobUrl(h.proof_card),
+    proof_letter: signBlobUrl(h.proof_letter),
+  }));
+
+  return NextResponse.json({ histories: safe });
 }
 
 export async function POST(request: NextRequest) {

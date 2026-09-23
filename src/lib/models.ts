@@ -1,7 +1,9 @@
 export interface User {
   id: string;
   full_name: string;
+  /** Private. Server-only — never returned by public endpoints. */
   phone: string;
+  /** Private. Server-only. */
   email: string;
   password_hash: string;
   role: string;
@@ -83,6 +85,7 @@ export interface BloodRequest {
   latitude: number;
   longitude: number;
   city: string;
+  /** Private. Server-only — stripped from public API responses. */
   contact_phone: string;
   notes: string | null;
   status: string;
@@ -145,6 +148,7 @@ export interface Event {
   start_time: string;
   end_time: string;
   organizer: string;
+  /** Private. Server-only — stripped from public API responses. */
   contact_phone: string;
   quota: number;
   poster_url: string | null;

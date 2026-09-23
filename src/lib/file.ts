@@ -1,5 +1,6 @@
 import { put, del } from "@vercel/blob";
 import { v4 as uuidv4 } from "uuid";
+import { signBlobPath } from "./file-sign";
 
 export async function uploadFile(
   buffer: Buffer,
@@ -26,4 +27,11 @@ export function getFileUrl(blobUrl: string | null | undefined): string | null {
   // External URLs (Google, etc.) pass through directly — proxy only handles Vercel Blob private URLs
   if (!blobUrl.includes("blob.vercel-storage.com")) return blobUrl;
   return `/api/v1/files?url=${encodeURIComponent(blobUrl)}`;
+}
+
+/** Replace a private blob URL with a signed proxy path (server-side only). */
+export function signBlobUrl(blobUrl: string | null | undefined): string | null {
+  if (!blobUrl) return null;
+  if (!blobUrl.includes("blob.vercel-storage.com")) return blobUrl;
+  return signBlobPath(blobUrl);
 }

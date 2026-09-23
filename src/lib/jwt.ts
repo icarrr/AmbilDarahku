@@ -1,7 +1,15 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
-const getSecret = () => process.env.JWT_SECRET || "dev-secret";
+// Fail closed: JWT_SECRET is mandatory. No dev fallback — a forgivable default
+// lets anyone mint admin tokens and defeats all authz.
+const getSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET env var is required");
+  }
+  return secret;
+};
 const getAccessExpiry = () => {
   const v = process.env.JWT_ACCESS_EXPIRY;
   if (v) {

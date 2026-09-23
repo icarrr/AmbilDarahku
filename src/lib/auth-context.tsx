@@ -31,6 +31,7 @@ type User = {
   verification_level?: number;
   trust_score?: number;
   last_donation_date?: string;
+  contact_consent?: boolean;
 };
 
 type AuthContextType = {

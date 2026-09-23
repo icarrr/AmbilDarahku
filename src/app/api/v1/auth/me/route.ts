@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest) {
     const allowedFields = [
       "full_name", "phone", "username", "avatar_url", "gender", "blood_type",
       "weight_kg", "height_cm", "province", "city", "district", "date_of_birth",
+      "contact_consent",
     ] as const;
 
     const updates: Record<string, any> = {};

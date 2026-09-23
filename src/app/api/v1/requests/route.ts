@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
+import { hitLimit, clampLimit } from "@/lib/rate-limit";
+import { PUBLIC_BLOOD_REQUEST_FIELDS, toPublicRequest } from "@/lib/privacy";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  const limited = hitLimit(request);
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const bloodType = url.searchParams.get("blood_type");
   const urgency = url.searchParams.get("urgency");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
+  const limit = clampLimit(url.searchParams.get("limit"), 20, 30);
 
-  let query = supabase.from("blood_requests").select("*");
+  let query = supabase
+    .from("blood_requests")
+    .select(PUBLIC_BLOOD_REQUEST_FIELDS.join(","));
 
   if (bloodType) query = query.eq("blood_type", bloodType);
   if (urgency) query = query.eq("urgency", urgency);
@@ -26,7 +33,7 @@ export async function GET(request: NextRequest) {
     return (order[a.urgency] ?? 2) - (order[b.urgency] ?? 2);
   });
 
-  return NextResponse.json({ requests: requests || [] });
+  return NextResponse.json({ requests: (requests || []).map((r: any) => toPublicRequest(r)) });
 }
 
 export async function POST(request: NextRequest) {

@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkAdmin } from "@/lib/auth-middleware";
+import { hitLimit } from "@/lib/rate-limit";
+import { PUBLIC_EVENT_FIELDS, toPublicEvent } from "@/lib/privacy";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const limited = hitLimit(request);
+  if (limited) return limited;
+
   const { data: events } = await supabase
     .from("events")
-    .select("*")
+    .select(PUBLIC_EVENT_FIELDS.join(","))
     .order("event_date", { ascending: true });
 
-  return NextResponse.json({ events: events || [] });
+  return NextResponse.json({ events: (events || []).map((e: any) => toPublicEvent(e)) });
 }
 
 export async function POST(request: NextRequest) {

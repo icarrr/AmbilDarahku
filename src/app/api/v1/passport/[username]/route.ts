@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
+import { hitLimit } from "@/lib/rate-limit";
+import { toPublicUser } from "@/lib/privacy";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ username: string }> }) {
+  const limited = hitLimit(request);
+  if (limited) return limited;
+
   const { username } = await params;
 
   const { data: user } = await supabase.from("users").select("*").eq("username", username).maybeSingle();
@@ -29,6 +34,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     badges: undefined,
   }));
 
-  const { password_hash, email, phone, ...safe } = user;
-  return NextResponse.json({ passport: passport || null, user: safe, badges: mapped, titles: titles || [] });
+  return NextResponse.json({ passport: passport || null, user: toPublicUser(user), badges: mapped, titles: titles || [] });
 }

@@ -18,13 +18,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const body = await request.json();
-    const { role } = body;
+    const { role, contact_consent } = body;
 
-    if (!role) return NextResponse.json({ error: "role required" }, { status: 400 });
+    if (!role && contact_consent === undefined) {
+      return NextResponse.json({ error: "role or contact_consent required" }, { status: 400 });
+    }
+
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (role) update.role = role;
+    if (contact_consent !== undefined) update.contact_consent = Boolean(contact_consent);
 
     const { data: result, error: ue } = await supabase
       .from("users")
-      .update({ role, updated_at: new Date().toISOString() })
+      .update(update)
       .eq("id", id)
       .select("*");
 

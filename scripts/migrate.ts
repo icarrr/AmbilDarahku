@@ -305,6 +305,49 @@ CREATE TABLE IF NOT EXISTS config (
 );
 
 INSERT INTO config (key, value) VALUES ('maintenance', '{"enabled": false}') ON CONFLICT DO NOTHING;
+
+-- ── Scrape scheduler (auto scraping without external cron) ─────────────
+CREATE TABLE IF NOT EXISTS scrape_jobs (
+  job_name VARCHAR(50) PRIMARY KEY,
+  status VARCHAR(10) NOT NULL DEFAULT 'IDLE',
+  started_at TIMESTAMPTZ,
+  locked_until TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO scrape_jobs (job_name) VALUES ('discover') ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS scrape_runs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_name VARCHAR(50) NOT NULL DEFAULT 'discover',
+  trigger VARCHAR(20) NOT NULL DEFAULT 'manual',
+  status VARCHAR(10) NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ,
+  duration_ms INT,
+  result JSONB,
+  error_message TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scrape_runs_started ON scrape_runs(started_at DESC);
+
+-- ── Privacy: contact consent + abuse reports ────────────────────────────
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS contact_consent BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  target_type VARCHAR(30) NOT NULL,
+  target_id UUID NOT NULL,
+  reason VARCHAR(60) NOT NULL DEFAULT 'other',
+  notes TEXT,
+  reported_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(12) NOT NULL DEFAULT 'open',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 `;
 
 const enableRls = `
@@ -373,6 +416,51 @@ export async function seedAdmin() {
   console.log("admin user seeded");
 }
 
+function cronExpression(intervalMinutes: number): string {
+  if (intervalMinutes < 60) return `*/${intervalMinutes} * * * *`;
+  const hours = Math.floor(intervalMinutes / 60);
+  return intervalMinutes % 60 === 0 ? `0 */${hours} * * *` : `*/${intervalMinutes} * * * *`;
+}
+
+/**
+ * Native Supabase scheduler: pg_cron + pg_net POST to the deployed app hourly.
+ * No external cron service. Only schedules when SCRAPE_TARGET_URL is set
+ * (e.g. https://ambildarahku.vercel.app/api/v1/discover).
+ * Local/docker Postgres without pg_cron/pg_net stays manual-only (warn).
+ */
+export async function scheduleScrapeCron() {
+  const targetUrl = process.env.SCRAPE_TARGET_URL;
+  if (!targetUrl) {
+    console.log("SCRAPE_TARGET_URL not set — skipping automatic scheduler setup (manual Scrape Now only)");
+    return;
+  }
+
+  const secret = process.env.CRON_SECRET || "";
+  const intervalMinutes = parseInt(process.env.SCRAPE_INTERVAL_MINUTES || "60", 10);
+  const cronExpr = cronExpression(intervalMinutes);
+
+  // pg_cron / pg_net availability check
+  try {
+    await pool.query("CREATE EXTENSION IF NOT EXISTS pg_cron");
+    await pool.query("CREATE EXTENSION IF NOT EXISTS pg_net");
+  } catch (err: any) {
+    console.warn(`pg_cron/pg_net unavailable on this Postgres — automatic scheduler skipped (${err.message})`);
+    return;
+  }
+
+  // Idempotent: drop existing job, recreate with current cron expression + URL
+  await pool.query(
+    `SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'adk-scrape'`
+  );
+  const command = `net.http_post(url := '${targetUrl}', headers := jsonb_build_object('authorization', 'Bearer ${secret}', 'x-scheduled', 'true'), body := jsonb_build_object('trigger', 'scheduler'), timeout_milliseconds := 300000)`;
+  await pool.query(
+    `SELECT cron.schedule('adk-scrape', $1, $2)`,
+    [cronExpr, command]
+  );
+  console.log(`Scheduled 'adk-scrape' → ${cronExpr} → ${targetUrl} (interval ${intervalMinutes}m)`);
+  if (!secret) console.warn("CRON_SECRET not set — scheduled trigger will be rejected by the app!");
+}
+
 export async function migrate() {
   console.log("running migrations...");
   await pool.query(schema);
@@ -383,6 +471,8 @@ export async function migrate() {
 
   await seedBadges();
   await seedAdmin();
+
+  await scheduleScrapeCron();
 
   // Clean up seeded donor accounts with bot/organization-like names
   await pool.query(

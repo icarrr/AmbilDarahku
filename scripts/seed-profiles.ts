@@ -8,8 +8,7 @@ const PROFILES_API_URL =
   "https://vrumbtsfrqvnmdpezlot.supabase.co/rest/v1/profiles?select=*";
 const DONORS_API_URL =
   "https://vrumbtsfrqvnmdpezlot.supabase.co/rest/v1/donors?select=*";
-const ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydW1idHNmcnF2bm1kcGV6bG90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTY0MzYsImV4cCI6MjA5MjIzMjQzNn0.xrk5qWUbr4JoaPBW5NdJlqT3AyBHdTS9a4ifami3vuo";
+const ANON_KEY = process.env.KS_ANON_KEY || "";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

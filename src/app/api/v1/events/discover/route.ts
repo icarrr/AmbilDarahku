@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthContext, checkAdmin } from "@/lib/auth-middleware";
 import { discoverEvents } from "@/lib/event-discovery/runner";
+import { isSchedulerAuthorized } from "@/lib/discovery/scheduler";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  // Vercel Cron trigger — bypass JWT, verify via CRON_SECRET
-  if (request.headers.get("x-vercel-cron")) {
-    const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const authHeader = request.headers.get("authorization") || "";
-      if (authHeader !== `Bearer ${secret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-    }
+  // Internal scheduler trigger — verified via CRON_SECRET
+  if (isSchedulerAuthorized(request)) {
     try {
       const result = await discoverEvents();
       return NextResponse.json(result);

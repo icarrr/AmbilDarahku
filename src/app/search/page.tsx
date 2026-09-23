@@ -7,9 +7,11 @@ import { GlassCard } from "@/components/glass-card";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
-import { MapPin, SlidersHorizontal, MessageCircle, LogIn, Filter } from "lucide-react";
+import { MapPin, SlidersHorizontal, MessageCircle, LogIn, Filter, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { coordinatorWaLink } from "@/lib/coordinator";
+import { ReportDialog } from "@/components/report-dialog";
 
 type Donor = {
   id: string;
@@ -19,14 +21,11 @@ type Donor = {
   city_name?: string;
   province: string;
   province_name?: string;
-  latitude: number;
-  longitude: number;
   total_donations: number;
   availability_status: string;
   eligibility_status: string;
-  phone: string;
   username?: string;
-  distance_km?: number;
+  contact_consent?: boolean;
   last_donation_date?: string;
   avatar_url?: string | null;
 };
@@ -154,6 +153,13 @@ export default function SearchPage() {
             </button>
           </div>
 
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <span>
+              Perhatian: donor darah melalui aplikasi ini tidak dipungut biaya. Kontak dilakukan melalui koordinator — jangan berikan uang kepada siapa pun yang mengatasnamakan donor atau aplikasi ini.
+            </span>
+          </div>
+
           {loading ? (
             <div className={cn("gap-3", viewMode === "grid" ? "grid grid-cols-2" : "space-y-3")}>
               {[1, 2, 3, 4].map((i) => (
@@ -230,13 +236,20 @@ export default function SearchPage() {
                       </div>
                     </Link>
                     <div className={cn("flex flex-col gap-1.5", viewMode === "grid" ? "mt-3" : "w-full sm:w-auto flex-shrink-0")}>
-                      {donor.phone && (
-                        <a href={`https://wa.me/${donor.phone}`} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600">
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          Hubungi via WhatsApp
-                        </a>
-                      )}
+                      {(() => {
+                        const wa = coordinatorWaLink(
+                          `Halo, saya mencari donor darah ${donor.blood_type} di ${donor.city_name || donor.city}. Apakah ada donor yang tersedia?`
+                        );
+                        return wa ? (
+                          <a href={wa}
+                             target="_blank" rel="noopener noreferrer"
+                             className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-600">
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Hubungi Koordinator
+                          </a>
+                        ) : null;
+                      })()}
+                      <ReportDialog targetType="donor" targetId={donor.id} />
                     </div>
                   </GlassCard>
                 );

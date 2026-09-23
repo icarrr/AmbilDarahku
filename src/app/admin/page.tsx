@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Link from "next/link";
-import { RefreshCw, Droplets, Wrench } from "lucide-react";
+import { RefreshCw, Droplets, Wrench, Flag } from "lucide-react";
 
 type UserItem = {
   id: string;
@@ -23,6 +23,7 @@ type UserItem = {
   total_donations: number;
   eligibility_status: string;
   availability_status: string;
+  contact_consent?: boolean;
   created_at: string;
 };
 
@@ -32,6 +33,35 @@ type AdminStats = {
   total_users: number;
   total_donors: number;
   total_donations: number;
+};
+
+type ScrapeRun = {
+  id: string;
+  trigger: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  errorMessage: string | null;
+  counts: {
+    eventsNew: number | null;
+    eventsScraped: number | null;
+    bloodRequestsAffected: number | null;
+    profilesInserted: number | null;
+    donorsInserted: number | null;
+    donorStatusesUpdated: number | null;
+  };
+};
+
+type ScrapeStatus = {
+  enabled: boolean;
+  intervalMinutes: number;
+  status: string;
+  lockStartedAt: string | null;
+  lastRunAt: string | null;
+  consecutiveFailures: number;
+  nextRunAt: string | null;
+  runs: ScrapeRun[];
 };
 
 const ROLES = ["donor", "super_admin", "community_admin", "pmi_admin", "hospital_admin"];
@@ -50,6 +80,13 @@ const ELIGIBILITY_LABELS: Record<string, string> = {
   not_eligible: "Tidak Syarat",
   needs_clearance: "Izin Dokter",
 };
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("id-ID", {
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+  });
+}
 
 export default function AdminPage() {
   const { isAdmin } = useAuth();
@@ -80,6 +117,16 @@ export default function AdminPage() {
   } | null>(null);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [togglingMaintenance, setTogglingMaintenance] = useState(false);
+  const [scrapeStatus, setScrapeStatus] = useState<ScrapeStatus | null>(null);
+
+  const loadScrapeStatus = async () => {
+    try {
+      const d = await api.get<ScrapeStatus>("/admin/scrape");
+      setScrapeStatus(d);
+    } catch {
+      // non-fatal — status card stays hidden
+    }
+  };
 
   const toggleMaintenance = async () => {
     setTogglingMaintenance(true);
@@ -122,6 +169,7 @@ export default function AdminPage() {
       toast.error(msg);
     } finally {
       setScraping(false);
+      loadScrapeStatus();
     }
   };
 
@@ -130,6 +178,9 @@ export default function AdminPage() {
     api.get<{ users: UserItem[] }>("/admin/users").then(d => setUsers(d.users || [])).catch(() => {});
     api.get<AdminStats>("/admin/stats").then(d => setStats(d)).catch(() => {});
     api.get<{ enabled: boolean }>("/admin/maintenance").then(d => setMaintenanceMode(d.enabled)).catch(() => {});
+    loadScrapeStatus();
+    const t = setInterval(loadScrapeStatus, 15000);
+    return () => clearInterval(t);
   }, [isAdmin]);
 
   if (!isAdmin) {
@@ -147,6 +198,16 @@ export default function AdminPage() {
       setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u));
     } catch {
       toast.error("Gagal memperbarui role");
+    }
+  };
+
+  const toggleConsent = async (id: string, contact_consent: boolean) => {
+    try {
+      await api.put(`/admin/users/${id}/role`, { contact_consent });
+      toast.success(contact_consent ? "Kontak diizinkan" : "Kontak dinonaktifkan");
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, contact_consent } : u));
+    } catch {
+      toast.error("Gagal memperbarui preferensi kontak");
     }
   };
 
@@ -252,6 +313,17 @@ export default function AdminPage() {
                 </CardHeader>
               </Card>
             </Link>
+            <Link href="/admin/reports">
+              <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Flag className="h-4 w-4 text-red-500" />
+                    Laporan Penyalahgunaan
+                  </CardTitle>
+                  <CardDescription>Tinjau laporan penipuan, spam, dan penyalahgunaan kontak.</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
           </div>
 
           <Card className={maintenanceMode ? "border-amber-400 ring-1 ring-amber-400" : ""}>
@@ -290,6 +362,53 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+
+          {scrapeStatus && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <RefreshCw className={`h-4 w-4 ${scrapeStatus.status === "RUNNING" ? "text-amber-500 animate-spin" : "text-gray-500"}`} />
+                  Scraper Otomatis
+                  <Badge variant={scrapeStatus.status === "RUNNING" ? "destructive" : scrapeStatus.consecutiveFailures > 0 ? "outline" : "default"} className="text-xs">
+                    {scrapeStatus.status === "RUNNING" ? "Berjalan" : scrapeStatus.consecutiveFailures > 0 ? `Gagal (${scrapeStatus.consecutiveFailures}x)` : "Idle"}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  {scrapeStatus.enabled
+                    ? `Jadwal supabase (pg_cron) — tiap ${scrapeStatus.intervalMinutes} menit, tanpa cron eksternal.`
+                    : "Scheduler belum aktif — set SCRAPE_TARGET_URL + CRON_SECRET lalu jalankan npm run migrate."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <p className="text-gray-500">Last Run</p>
+                    <p className="font-medium">{formatDateTime(scrapeStatus.lastRunAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Next Run</p>
+                    <p className="font-medium">{formatDateTime(scrapeStatus.nextRunAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Status Terakhir</p>
+                    <p className="font-medium">{scrapeStatus.runs[0]?.status === "FAILED" ? "Gagal" : scrapeStatus.runs[0]?.status === "SUCCESS" ? "Sukses" : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Durasi</p>
+                    <p className="font-medium">{scrapeStatus.runs[0]?.durationMs ? `${(scrapeStatus.runs[0].durationMs / 1000).toFixed(1)} dtk` : "—"}</p>
+                  </div>
+                </div>
+                {scrapeStatus.runs[0]?.counts && (
+                  <p className="text-xs text-gray-600 pt-2">
+                    Event: {scrapeStatus.runs[0].counts.eventsNew ?? "—"} · Darah: {scrapeStatus.runs[0].counts.bloodRequestsAffected ?? "—"} · Profil: {scrapeStatus.runs[0].counts.profilesInserted ?? "—"} · Donor: {scrapeStatus.runs[0].counts.donorsInserted ?? "—"} · Status Donor: {scrapeStatus.runs[0].counts.donorStatusesUpdated ?? "—"}
+                  </p>
+                )}
+                {scrapeStatus.runs[0]?.errorMessage && (
+                  <p className="text-xs text-red-500 pt-1">Alasan: {scrapeStatus.runs[0].errorMessage}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -384,6 +503,7 @@ export default function AdminPage() {
                     <th className="pb-2 font-medium">Kota</th>
                     <th className="pb-2 font-medium">Donor</th>
                     <th className="pb-2 font-medium">Status</th>
+                    <th className="pb-2 font-medium">Kontak</th>
                     <th className="pb-2 font-medium">Aksi</th>
                   </tr>
                 </thead>
@@ -402,6 +522,17 @@ export default function AdminPage() {
                         <Badge variant={u.eligibility_status === "eligible" ? "default" : "secondary"} className="text-xs">
                           {ELIGIBILITY_LABELS[u.eligibility_status] || u.eligibility_status}
                         </Badge>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <button
+                          onClick={() => toggleConsent(u.id, !u.contact_consent)}
+                          title="Boleh dihubungi utk donor?"
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                            u.contact_consent ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {u.contact_consent ? "Seizin" : "Diam"}
+                        </button>
                       </td>
                       <td className="py-2">
                         <Select
