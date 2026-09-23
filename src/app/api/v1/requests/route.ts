@@ -3,6 +3,7 @@ import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
 import { hitLimit, clampLimit } from "@/lib/rate-limit";
 import { PUBLIC_BLOOD_REQUEST_FIELDS, toPublicRequest } from "@/lib/privacy";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,12 @@ export async function GET(request: NextRequest) {
     return (order[a.urgency] ?? 2) - (order[b.urgency] ?? 2);
   });
 
-  return NextResponse.json({ requests: (requests || []).map((r: any) => toPublicRequest(r)) });
+  const safe = (requests || []).map((r: any) => {
+    const pub = toPublicRequest(r);
+    return { ...pub, city_name: lookupName(pub.city || "") };
+  });
+
+  return NextResponse.json({ requests: safe });
 }
 
 export async function POST(request: NextRequest) {

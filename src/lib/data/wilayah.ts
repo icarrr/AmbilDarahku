@@ -25,7 +25,9 @@ function codeMap(): Map<string, string> {
 
 /** Resolve a wilayah code to its display name (title-cased). Returns code itself if not found. */
 export function lookupName(code: string): string {
-  const name = codeMap().get(code);
+  // Legacy kawan-sedarah format "73.01" -> "7301" (wilayah.json uses dotless ids)
+  const normalized = code.replace(/\./g, "");
+  const name = codeMap().get(normalized);
   if (!name) return code;
   return name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }

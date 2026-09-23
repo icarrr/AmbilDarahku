@@ -26,14 +26,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: user } = await supabase
     .from("users")
-    .select("full_name, email, phone")
+    .select("full_name, email, phone, blood_type, city")
     .eq("id", claim.user_id)
     .maybeSingle();
 
   return NextResponse.json({
     ...claim,
-    user_name: user?.full_name,
-    user_email: user?.email,
-    user_phone: user?.phone,
+    full_name: user?.full_name,
+    email: user?.email,
+    phone: user?.phone,
+    donor_blood_type: user?.blood_type,
+    donor_city: user?.city,
   });
 }

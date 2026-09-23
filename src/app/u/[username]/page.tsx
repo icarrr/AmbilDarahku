@@ -30,12 +30,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       user = byId;
     }
     if (!user) return { title: "Donor Tidak Ditemukan" };
+    const cityLabel = lookupName(user.city || "");
     return {
       title: `${user.full_name} — ${user.blood_type}`,
-      description: `Donor darah ${user.blood_type} di ${user.city || "Indonesia"}. ${user.total_donations} donor, ${user.total_points} poin.`,
+      description: `Donor darah ${user.blood_type} di ${user.city ? cityLabel : "Indonesia"}. ${user.total_donations} donor, ${user.total_points} poin.`,
       openGraph: {
         title: `${user.full_name} — Profil Donor Darah`,
-        description: `Donor darah ${user.blood_type} di ${user.city || "Indonesia"}.`,
+        description: `Donor darah ${user.blood_type} di ${user.city ? cityLabel : "Indonesia"}.`,
       },
     };
   } catch {

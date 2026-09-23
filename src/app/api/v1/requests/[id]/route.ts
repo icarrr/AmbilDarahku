@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { hitLimit } from "@/lib/rate-limit";
 import { PUBLIC_BLOOD_REQUEST_FIELDS, PUBLIC_USER_FIELDS, toPublicRequest } from "@/lib/privacy";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -35,5 +36,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     donor_name: donorMap.get(f.donor_id)?.full_name,
   }));
 
-  return NextResponse.json({ request: toPublicRequest(bloodRequest as unknown as Record<string, unknown>), fulfillments: mapped });
+  const pub = toPublicRequest(bloodRequest as unknown as Record<string, unknown>);
+  const pubCity = (pub.city as string) || "";
+  return NextResponse.json({
+    request: { ...pub, city_name: lookupName(pubCity) },
+    fulfillments: mapped,
+  });
 }

@@ -293,7 +293,7 @@ export default function ProfilePage() {
                 items={[
                   {
                     id: "1",
-                    title: `Donor Terakhir${user.city ? ` - ${user.city}` : ""}`,
+                    title: `Donor Terakhir${user.city ? ` - ${user.city_name || user.city}` : ""}`,
                     description: "Berhasil mendonorkan darah",
                     date: formatDate(status?.last_donation_date) || "Belum ada data",
                     status: "completed",

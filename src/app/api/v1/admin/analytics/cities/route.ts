@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkPMIOrAdmin } from "@/lib/auth-middleware";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   const cities = Array.from(map.entries())
-    .map(([city, count]) => ({ city, count }))
+    .map(([city, count]) => ({ city, city_name: lookupName(city), count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 

@@ -57,7 +57,7 @@ export default function LeaderboardPage() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {effectiveCity
-                ? `Donor teraktif di ${effectiveCity}`
+                ? `Donor teraktif di ${cityFilter.trim() ? cityFilter.trim() : (user?.city_name || user?.city || "")}`
                 : "Donor teraktif seluruh Indonesia"}
             </p>
           </div>

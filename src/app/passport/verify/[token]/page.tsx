@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { GlassCard } from "@/components/glass-card";
 import { ShieldCheck, Award, Droplets, Heart, MapPin, Calendar } from "lucide-react";
+import { lookupName } from "@/lib/data/wilayah";
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -19,6 +20,7 @@ type VerifyResult = {
     total_donations: number;
     total_points: number;
   };
+  donorCityName?: string;
   error?: string;
 };
 
@@ -44,6 +46,7 @@ async function verifyPassport(token: string): Promise<VerifyResult | null> {
       passport_number: passport.passport_number,
       issued_at: passport.issued_at,
       donor,
+      donorCityName: lookupName(donor.city || ""),
     };
   } catch {
     return null;
@@ -68,7 +71,7 @@ export default async function VerifyPassportPage({ params }: Props) {
     notFound();
   }
 
-  const { donor, passport_number, issued_at } = result;
+  const { donor, passport_number, issued_at, donorCityName } = result;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
@@ -102,7 +105,7 @@ export default async function VerifyPassportPage({ params }: Props) {
           <div className="mt-2 space-y-1.5">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
-              {donor?.city_name || donor?.city}
+              {donorCityName || donor?.city}
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { hitLimit } from "@/lib/rate-limit";
 import { toPublicUser } from "@/lib/privacy";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -28,5 +29,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     badges: undefined,
   }));
 
-  return NextResponse.json({ ...toPublicUser(user), badges: mapped });
+  const pub = toPublicUser(user);
+  return NextResponse.json({
+    ...pub,
+    city_name: lookupName(pub.city || ""),
+    province_name: lookupName(pub.province || ""),
+    district_name: lookupName(pub.district || ""),
+    badges: mapped,
+  });
 }

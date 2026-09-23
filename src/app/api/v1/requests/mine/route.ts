@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -17,5 +18,10 @@ export async function GET(request: NextRequest) {
     .eq("requester_id", auth.userId)
     .order("created_at", { ascending: false });
 
-  return NextResponse.json({ requests: requests || [] });
+  const safe = (requests || []).map((r: any) => ({
+    ...r,
+    city_name: lookupName(r.city || ""),
+  }));
+
+  return NextResponse.json({ requests: safe });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail } from "@/lib/auth-middleware";
+import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
@@ -33,5 +34,15 @@ export async function GET(request: NextRequest) {
   }));
 
   const { password_hash, ...safe } = user!;
-  return NextResponse.json({ passport: passport || null, user: safe, badges: mapped, titles: titles || [] });
+  return NextResponse.json({
+    passport: passport || null,
+    user: {
+      ...safe,
+      city_name: lookupName(safe.city || ""),
+      province_name: lookupName(safe.province || ""),
+      district_name: lookupName(safe.district || ""),
+    },
+    badges: mapped,
+    titles: titles || [],
+  });
 }
