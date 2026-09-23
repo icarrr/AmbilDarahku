@@ -443,6 +443,9 @@ export async function scheduleScrapeCron() {
   try {
     await pool.query("CREATE EXTENSION IF NOT EXISTS pg_cron");
     await pool.query("CREATE EXTENSION IF NOT EXISTS pg_net");
+    // Supabase: grant schema usage so the app pool role can schedule/invoke
+    await pool.query("GRANT USAGE ON SCHEMA cron TO postgres");
+    await pool.query("GRANT USAGE ON SCHEMA net TO postgres");
   } catch (err: any) {
     console.warn(`pg_cron/pg_net unavailable on this Postgres — automatic scheduler skipped (${err.message})`);
     return;
@@ -457,6 +460,14 @@ export async function scheduleScrapeCron() {
     `SELECT cron.schedule('adk-scrape', $1, $2)`,
     [cronExpr, command]
   );
+  const { rows: scheduled } = await pool.query(
+    `SELECT jobid, schedule, command FROM cron.job WHERE jobname = 'adk-scrape'`
+  );
+  if (!scheduled.length) {
+    console.error("Scheduler job 'adk-scrape' was not created — check pg_cron grants (GRANT USAGE ON SCHEMA cron/postgres)");
+  } else {
+    console.log(`Scheduler job verified: jobid=${scheduled[0].jobid} schedule=${scheduled[0].schedule}`);
+  }
   console.log(`Scheduled 'adk-scrape' → ${cronExpr} → ${targetUrl} (interval ${intervalMinutes}m)`);
   if (!secret) console.warn("CRON_SECRET not set — scheduled trigger will be rejected by the app!");
 }
@@ -465,6 +476,16 @@ export async function migrate() {
   console.log("running migrations...");
   await pool.query(schema);
   console.log("schema migrations completed");
+
+  // Performance indexes — composite query paths found in web-perf audit
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_users_role_points ON users(role, total_points DESC);
+    CREATE INDEX IF NOT EXISTS idx_blood_requests_requester ON blood_requests(requester_id);
+    CREATE INDEX IF NOT EXISTS idx_donor_histories_user_date ON donor_histories(user_id, donation_date);
+    CREATE INDEX IF NOT EXISTS idx_events_status_date ON events(status, event_date);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+  `);
+  console.log("performance indexes ensured");
 
   await pool.query(enableRls);
   console.log("row-level security enabled on all tables (no policies — service_role bypasses RLS, anon key is unused)");

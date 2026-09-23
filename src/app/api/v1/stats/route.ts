@@ -4,12 +4,25 @@ import { lookupName } from "@/lib/data/wilayah";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const { count: active } = await supabase.from("users").select("*", { count: "exact", head: true }).eq("availability_status", "available");
-  const { data: donRows } = await supabase.from("donor_histories").select("bags");
-  const totalDonations = (donRows || []).reduce((s: number, r: any) => s + (r.bags || 0), 0);
+// Public landing stats — cache 60s, not per-request
+export const revalidate = 60;
 
-  const { data: cityRows } = await supabase.from("users").select("city").neq("city", "").not("city", "is", null);
+export async function GET() {
+  const { count: active } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .eq("availability_status", "available");
+
+  // Aggregate in SQL — no full-table transfer to JS
+  const { data: sumRows } = await supabase.from("donor_histories").select("sum(bags)");
+  const row = sumRows?.[0] as Record<string, unknown> | undefined;
+  const totalDonations = Number(row?.sum ?? row?.["sum(bags)"] ?? 0);
+
+  const { data: cityRows } = await supabase
+    .from("users")
+    .select("city")
+    .neq("city", "")
+    .not("city", "is", null);
   // Resolve codes to names before dedupe so legacy codes + names collapse into one city
   const citiesReached = new Set((cityRows || []).map((r: any) => lookupName(r.city))).size;
 

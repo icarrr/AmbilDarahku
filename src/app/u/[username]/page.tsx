@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { supabase } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
@@ -8,40 +9,23 @@ import { GlassCard } from "@/components/glass-card";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
 import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck } from "lucide-react";
 import { lookupName } from "@/lib/data/wilayah";
-import { toPublicUser } from "@/lib/privacy";
+import { PUBLIC_USER_FIELDS, toPublicUser } from "@/lib/privacy";
 
 type Props = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
-  try {
-    let query = supabase
-      .from("users")
-      .select("full_name, blood_type, city, total_donations, total_points")
-      .eq("username", username);
-    let { data: user } = await query.maybeSingle();
-
-    if (!user && /^[0-9a-f-]{36}$/.test(username)) {
-      const { data: byId } = await supabase
-        .from("users")
-        .select("full_name, blood_type, city, total_donations, total_points")
-        .eq("id", username)
-        .maybeSingle();
-      user = byId;
-    }
-    if (!user) return { title: "Donor Tidak Ditemukan" };
-    const cityLabel = lookupName(user.city || "");
-    return {
-      title: `${user.full_name} — ${user.blood_type}`,
-      description: `Donor darah ${user.blood_type} di ${user.city ? cityLabel : "Indonesia"}. ${user.total_donations} donor, ${user.total_points} poin.`,
-      openGraph: {
-        title: `${user.full_name} — Profil Donor Darah`,
-        description: `Donor darah ${user.blood_type} di ${user.city ? cityLabel : "Indonesia"}.`,
-      },
-    };
-  } catch {
-    return { title: "Donor Tidak Ditemukan" };
-  }
+  const profile = await getProfile(username);
+  if (!profile) return { title: "Donor Tidak Ditemukan" };
+  const cityLabel = lookupName(profile.city || "");
+  return {
+    title: `${profile.full_name} — ${profile.blood_type}`,
+    description: `Donor darah ${profile.blood_type} di ${profile.city ? cityLabel : "Indonesia"}. ${profile.total_donations} donor, ${profile.total_points} poin.`,
+    openGraph: {
+      title: `${profile.full_name} — Profil Donor Darah`,
+      description: `Donor darah ${profile.blood_type} di ${profile.city ? cityLabel : "Indonesia"}.`,
+    },
+  };
 }
 
 type UserBadge = {
@@ -69,17 +53,18 @@ type PublicProfile = {
   trust_score?: number;
 };
 
-async function getProfile(username: string): Promise<PublicProfile | null> {
+// Shared with generateMetadata — React cache() dedupes the page + metadata queries
+const getProfile = cache(async function (username: string): Promise<PublicProfile | null> {
   try {
-    let query = supabase.from("users").select("*").eq("username", username);
-    let { data: user } = await query.maybeSingle();
+    let query = supabase.from("users").select(PUBLIC_USER_FIELDS.join(",")).eq("username", username);
+    let { data: user } = (await query.maybeSingle()) as unknown as { data: Record<string, unknown> | null };
 
     if (!user && /^[0-9a-f-]{36}$/.test(username)) {
-      const { data: byId } = await supabase
+      const { data: byId } = (await supabase
         .from("users")
-        .select("*")
+        .select(PUBLIC_USER_FIELDS.join(","))
         .eq("id", username)
-        .maybeSingle();
+        .maybeSingle()) as unknown as { data: Record<string, unknown> | null };
       user = byId;
     }
 
@@ -101,7 +86,7 @@ async function getProfile(username: string): Promise<PublicProfile | null> {
   } catch {
     return null;
   }
-}
+});
 
 export default async function PublicPortfolioPage({
   params,

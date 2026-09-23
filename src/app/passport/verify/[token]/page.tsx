@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { supabase } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
@@ -24,11 +25,12 @@ type VerifyResult = {
   error?: string;
 };
 
-async function verifyPassport(token: string): Promise<VerifyResult | null> {
+// Shared with generateMetadata — React cache() dedupes page + metadata queries
+const verifyPassport = cache(async function (token: string): Promise<VerifyResult | null> {
   try {
     const { data: passport } = await supabase
       .from("donor_passports")
-      .select("*")
+      .select("passport_number, issued_at, user_id")
       .eq("qr_token", token)
       .eq("is_active", true)
       .maybeSingle();
@@ -51,7 +53,7 @@ async function verifyPassport(token: string): Promise<VerifyResult | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;

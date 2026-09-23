@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip static file extensions
-  if (/\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|eot)$/i.test(pathname)) {
+  if (/\.(svg|png|jpg|jpeg|gif|webp|ico|css|js|json|woff2?|ttf|eot)$/i.test(pathname)) {
     return NextResponse.next();
   }
 

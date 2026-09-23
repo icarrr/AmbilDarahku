@@ -28,17 +28,35 @@ export default function LeaderboardPage() {
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [tab, setTab] = useState<"national" | "regional">("national");
   const [cityFilter, setCityFilter] = useState("");
+  const [debouncedCity, setDebouncedCity] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const effectiveCity = cityFilter.trim() || (tab === "regional" ? user?.city || "" : "");
+  // Debounce city search — avoid request per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCity(cityFilter), 400);
+    return () => clearTimeout(t);
+  }, [cityFilter]);
+
+  const effectiveCity = debouncedCity.trim() || (tab === "regional" ? user?.city || "" : "");
 
   useEffect(() => {
     const endpoint = effectiveCity
       ? `/leaderboard/regional?city=${encodeURIComponent(effectiveCity)}`
       : "/leaderboard/national";
     api.get<{ leaderboard: LeaderboardUser[] }>(endpoint)
-      .then(d => setUsers(d.leaderboard || []))
-      .catch(() => {});
-  }, [effectiveCity]);
+      .then(d => { setUsers(d.leaderboard || []); setError(false); })
+      .catch(() => { setUsers([]); setError(true); })
+      .finally(() => setLoading(false));
+  }, [effectiveCity, retryCount]);
+
+  const changeTab = (t: "national" | "regional") => {
+    setTab(t);
+    setCityFilter("");
+    setLoading(true);
+    setError(false);
+  };
 
   const topPoints = users[0]?.total_points || 1;
   const top3 = users.slice(0, 3);
@@ -63,7 +81,7 @@ export default function LeaderboardPage() {
           </div>
           <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
             <button
-              onClick={() => { setTab("national"); setCityFilter(""); }}
+              onClick={() => changeTab("national")}
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 !effectiveCity ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
@@ -73,7 +91,7 @@ export default function LeaderboardPage() {
               Nasional
             </button>
             <button
-              onClick={() => { setTab("regional"); setCityFilter(""); }}
+              onClick={() => changeTab("regional")}
               className={cn(
                 "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 effectiveCity ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
@@ -101,7 +119,25 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      {loading ? (
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-lg bg-gray-100 animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
+          <button onClick={() => { setLoading(true); setError(false); setRetryCount(c => c + 1); }} className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-foreground hover:bg-gray-50">
+            Coba Lagi
+          </button>
+        </GlassCard>
+      ) : users.length === 0 ? (
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Belum ada donor terdaftar</p>
+          <p className="text-xs text-muted-foreground">Nantikan donasi pertama dari komunitas Anda</p>
+        </GlassCard>
+      ) : (
+      <><div className="mb-6 grid grid-cols-3 gap-3">
         <GlassCard className="text-center py-3">
           <Droplets className="mx-auto h-5 w-5 text-red-600" />
           <p className="mt-1 font-heading text-xl font-bold text-foreground">{users.length}</p>
@@ -211,6 +247,8 @@ export default function LeaderboardPage() {
           <Flame className="h-3 w-3" />
           <span>Total {users.length} donor terdaftar</span>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
@@ -25,23 +25,36 @@ export default function ArchivePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [cityFilter, setCityFilter] = useState("");
+  const [debouncedCity, setDebouncedCity] = useState("");
+  const fetchSeq = useRef(0);
+
+  // Debounce city filter — avoid request per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCity(cityFilter), 400);
+    return () => clearTimeout(t);
+  }, [cityFilter]);
 
   useEffect(() => {
     setLoading(true);
+    const seq = ++fetchSeq.current;
     const params = new URLSearchParams({ page: String(page), limit: "20" });
-    if (cityFilter) params.set("city", cityFilter);
+    if (debouncedCity) params.set("city", debouncedCity);
 
     api.get<{ events: Event[]; total: number; totalPages: number }>(`/events/archive?${params}`)
       .then(d => {
+        if (seq !== fetchSeq.current) return; // stale response
         setEvents(d.events || []);
         setTotalPages(d.totalPages || 1);
       })
       .catch(() => {
+        if (seq !== fetchSeq.current) return;
         setEvents([]);
         setTotalPages(1);
       })
-      .finally(() => setLoading(false));
-  }, [page, cityFilter]);
+      .finally(() => {
+        if (seq === fetchSeq.current) setLoading(false);
+      });
+  }, [page, debouncedCity]);
 
   const FALLBACK_EVENT_PATH = "events/Gemini_Generated_Image_295p3i295p3i295p.jpg";
 

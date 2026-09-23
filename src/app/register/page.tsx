@@ -46,8 +46,10 @@ export default function RegisterPage() {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [selCity, setSelCity] = useState<string | null>(null);
-  const regencies = selProv ? wilayah.getRegencies(selProv) : [];
-  const districts = selCity ? wilayah.getDistricts(selCity) : [];
+
+  // Lazily load only the cascading level the selection needs
+  useEffect(() => { wilayah.loadRegencies(selProv); }, [selProv, wilayah.loadRegencies]);
+  useEffect(() => { wilayah.loadDistricts(selCity); }, [selCity, wilayah.loadDistricts]);
 
   const update = (key: string, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -344,7 +346,7 @@ export default function RegisterPage() {
                     <SelectValue placeholder={selProv ? "Pilih kota..." : "Pilih provinsi dulu"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {regencies.map((r) => (
+                    {wilayah.regencies.map((r) => (
                       <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -362,7 +364,7 @@ export default function RegisterPage() {
                     <SelectValue placeholder={selCity ? "Pilih kecamatan..." : "Pilih kota dulu"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {districts.map((d) => (
+                    {wilayah.districts.map((d) => (
                       <SelectItem key={d.code} value={d.code}>{d.name}</SelectItem>
                     ))}
                   </SelectContent>

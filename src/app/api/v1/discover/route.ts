@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runDiscovery, isSchedulerAuthorized } from "@/lib/discovery/scheduler";
+import { runDiscovery, isSchedulerAuthorized, isVercelCron } from "@/lib/discovery/scheduler";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  const isScheduled = isSchedulerAuthorized(request);
+  const isScheduled = isSchedulerAuthorized(request) || isVercelCron(request);
 
   if (isScheduled) {
     try {

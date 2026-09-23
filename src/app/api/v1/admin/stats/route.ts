@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkPMIOrAdmin } from "@/lib/auth-middleware";
+import { getPool } from "@/lib/pg";
 
 export const runtime = "nodejs";
 
@@ -19,8 +20,11 @@ export async function GET(request: NextRequest) {
   const { count: totalUsers } = await supabase.from("users").select("*", { count: "exact", head: true });
   const { count: totalDonors } = await supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "donor");
 
-  const { data: donRows } = await supabase.from("donor_histories").select("bags");
-  const totalDonations = (donRows || []).reduce((s: number, r: any) => s + (r.bags || 0), 0);
+  // SUM in SQL — no full-table transfer to JS
+  const { rows } = await getPool().query<{ total: number }>(
+    "SELECT COALESCE(SUM(bags), 0)::int AS total FROM donor_histories"
+  );
+  const totalDonations = rows[0]?.total || 0;
 
   return NextResponse.json({
     pending_claims: pendingClaims || 0,

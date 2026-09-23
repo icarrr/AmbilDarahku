@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { getFileUrl } from "@/lib/file";
+import { getFileUrl } from "@/lib/file-url";
 
 interface AvatarWithBadgeProps {
   name: string;

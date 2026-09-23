@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useRef } from "react";
+import { useEffect, useState, use, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
@@ -12,7 +12,6 @@ import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, Ale
 import { useRouter } from "next/navigation";
 import { getAppUrl } from "@/lib/url";
 import { toast } from "sonner";
-import { toBlob } from "html-to-image";
 import { coordinatorWaLink } from "@/lib/coordinator";
 import { ReportDialog } from "@/components/report-dialog";
 
@@ -48,6 +47,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [eligibilityStatus, setEligibilityStatus] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -56,6 +56,8 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     if (!cardRef.current || !request) return;
     setSharing(true);
     try {
+      // Lazy-load only when user actually shares — keeps this lib out of initial bundle
+      const { toBlob } = await import("html-to-image");
       const blob = await toBlob(cardRef.current, { cacheBust: true });
       if (!blob) throw new Error("Gagal mengambil gambar");
       const file = new File([blob], "permintaan-darah.png", { type: "image/png" });
@@ -89,26 +91,22 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
     }
   };
 
-  const fetchData = () => {
-    api.get<{ request: BloodRequest }>(`/requests/${id}`)
-      .then(d => setRequest(d.request))
-      .catch(() => setRequest(null));
-
-    api.get<{ fulfillments: Fulfillment[] }>(`/requests/${id}/fulfillments`, false)
-      .then(d => setFulfillments(d.fulfillments || []))
-      .catch(() => {});
-  };
+  const fetchData = useCallback(() =>
+    api.get<{ request: BloodRequest; fulfillments: Fulfillment[] }>(`/requests/${id}`)
+      .then(d => {
+        setRequest(d.request);
+        setFulfillments(d.fulfillments || []);
+        setLoadError(false);
+      })
+      .catch((err: Error) => {
+        setRequest(null);
+        // "request not found" = genuine 404; anything else = network/server error
+        setLoadError(!err.message.includes("not found"));
+      }), [id]);
 
   useEffect(() => {
-    Promise.all([
-      api.get<{ request: BloodRequest }>(`/requests/${id}`),
-      api.get<{ fulfillments: Fulfillment[] }>(`/requests/${id}/fulfillments`, false),
-    ]).then(([req, fulf]) => {
-      setRequest(req.request);
-      setFulfillments(fulf.fulfillments || []);
-    }).catch(() => setRequest(null))
-    .finally(() => setLoading(false));
-  }, [id]);
+    fetchData().finally(() => setLoading(false));
+  }, [fetchData]);
 
   useEffect(() => {
     if (user) {
@@ -145,10 +143,22 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   if (!request) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <p className="text-sm text-muted-foreground">Permintaan tidak ditemukan</p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={() => router.push("/")}>
-          Kembali
-        </Button>
+        {loadError ? (
+          <>
+            <AlertCircle className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+            <p className="text-sm text-muted-foreground">Data belum dapat dimuat. Silakan coba lagi.</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => fetchData().finally(() => setLoading(false))}>
+              Coba Lagi
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">Permintaan tidak ditemukan</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => router.push("/")}>
+              Kembali
+            </Button>
+          </>
+        )}
       </div>
     );
   }

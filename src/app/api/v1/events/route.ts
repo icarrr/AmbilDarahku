@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkAdmin } from "@/lib/auth-middleware";
-import { hitLimit } from "@/lib/rate-limit";
+import { hitLimit, clampLimit } from "@/lib/rate-limit";
 import { PUBLIC_EVENT_FIELDS, toPublicEvent } from "@/lib/privacy";
 
 export const runtime = "nodejs";
@@ -10,10 +10,22 @@ export async function GET(request: NextRequest) {
   const limited = hitLimit(request);
   if (limited) return limited;
 
-  const { data: events } = await supabase
+  const url = new URL(request.url);
+  const statusParam = url.searchParams.get("status") || "upcoming"; // upcoming | past | all
+  const limit = clampLimit(url.searchParams.get("limit"), 12, 60);
+  const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
+
+  let query = supabase
     .from("events")
     .select(PUBLIC_EVENT_FIELDS.join(","))
-    .order("event_date", { ascending: true });
+    .eq("is_archived", false);
+
+  if (statusParam === "upcoming") query = query.in("status", ["upcoming", "ongoing"]);
+  else if (statusParam === "past") query = query.eq("status", "completed");
+
+  const { data: events } = await query
+    .order("event_date", { ascending: true })
+    .range(offset, offset + limit - 1);
 
   return NextResponse.json({ events: (events || []).map((e: any) => toPublicEvent(e)) });
 }

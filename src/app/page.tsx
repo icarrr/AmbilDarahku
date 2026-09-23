@@ -49,7 +49,7 @@ async function getUpcomingEvents() {
 
 async function getStats() {
   try {
-    const res = await fetch(`${API_BASE}/stats`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/stats`, { next: { revalidate: 60 } });
     const data = await res.json();
     return data.stats;
   } catch {
@@ -58,8 +58,8 @@ async function getStats() {
 }
 
 export default async function LandingPage() {
-  const stats = await getStats();
-  const events = await getUpcomingEvents();
+  // Parallel — stats + events no longer sequential waterfall
+  const [stats, events] = await Promise.all([getStats(), getUpcomingEvents()]);
 
   const statCards = [
     { value: stats.active_donors > 0 ? formatStat(stats.active_donors) : "12k+", label: "Donor Aktif", icon: <Droplets className="h-4 w-4" /> },
@@ -217,8 +217,10 @@ export default async function LandingPage() {
               className="transition-transform hover:scale-105"
             >
               <img
-                src="/images/kawan-sedarah.jpg"
+                src="/images/kawan-sedarah.webp"
                 alt="Kawan Sedarah"
+                width={80}
+                height={80}
                 className="h-20 w-20 rounded-2xl shadow-md"
               />
             </a>

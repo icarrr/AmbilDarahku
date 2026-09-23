@@ -5,7 +5,6 @@ import { AuthProvider } from "@/lib/auth-context";
 import { BottomNav } from "@/components/bottom-nav";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { headers } from "next/headers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,26 +40,11 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const h = await headers();
-  const rewrite = h.get("x-middleware-rewrite") || "";
-  const isMaintenance = rewrite.includes("/maintenance");
-
-  // Maintenance mode — render minimal layout without nav/sidebar
-  if (isMaintenance) {
-    return (
-      <html lang="id" className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}>
-        <body className="min-h-full flex flex-col bg-background font-sans">
-          {children}
-        </body>
-      </html>
-    );
-  }
-
   return (
     <html
       lang="id"

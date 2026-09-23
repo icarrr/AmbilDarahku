@@ -31,19 +31,57 @@ export default function TimelinePage() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [filter, setFilter] = useState<FilterType>("all");
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    setError(false);
     api.get<{ entries: TimelineEntry[] }>("/timeline")
       .then(d => setEntries(d.entries || []))
-      .catch(() => {})
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, retryCount]);
 
   const filtered = filter === "all" ? entries : entries.filter(e => e.type === filter);
 
   if (loading) return <div className="mx-auto max-w-2xl px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16">
+        <GlassCard className="py-10 text-center">
+          <Droplets className="mx-auto mb-4 h-10 w-10 text-gray-300" />
+          <h2 className="font-heading text-lg font-bold text-foreground">Masuk untuk Melihat Linimasa</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Silakan masuk untuk melihat riwayat aktivitas donor Anda.</p>
+          <Link href="/login" className="mt-5 inline-flex rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700">
+            Masuk
+          </Link>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
+          <button
+            onClick={() => setRetryCount(c => c + 1)}
+            className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-foreground hover:bg-gray-50"
+          >
+            Coba Lagi
+          </button>
+        </GlassCard>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">

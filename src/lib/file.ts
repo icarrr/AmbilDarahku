@@ -22,13 +22,6 @@ export async function deleteFile(url: string): Promise<void> {
   await del(url);
 }
 
-export function getFileUrl(blobUrl: string | null | undefined): string | null {
-  if (!blobUrl) return null;
-  // External URLs (Google, etc.) pass through directly — proxy only handles Vercel Blob private URLs
-  if (!blobUrl.includes("blob.vercel-storage.com")) return blobUrl;
-  return `/api/v1/files?url=${encodeURIComponent(blobUrl)}`;
-}
-
 /** Replace a private blob URL with a signed proxy path (server-side only). */
 export function signBlobUrl(blobUrl: string | null | undefined): string | null {
   if (!blobUrl) return null;

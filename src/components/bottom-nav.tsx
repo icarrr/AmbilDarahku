@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   House, Search, TriangleAlert, Menu, X, Plus,
   User, History, CalendarDays, Trophy, BadgeCheck,
@@ -33,12 +33,32 @@ export function BottomNav() {
   const pathname = usePathname();
   const { user, isAdmin } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Drawer: focus, Escape close, scroll lock, restore focus
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prev = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    const t = window.setTimeout(() => panelRef.current?.focus(), 0);
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", keyHandler);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("keydown", keyHandler);
+      document.body.style.overflow = "";
+      prev?.focus?.();
+    };
+  }, [drawerOpen]);
 
   const NavLink = ({ href, icon: Icon, label }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string }) => {
     const isActive = pathname === href;
     return (
       <Link
         href={href}
+        aria-current={isActive ? "page" : undefined}
         className={cn(
           "relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-xs min-w-[56px] transition-colors active:scale-95",
           isActive
@@ -62,6 +82,9 @@ export function BottomNav() {
             {user && (
               <button
                 onClick={() => setDrawerOpen(true)}
+                aria-label="Buka menu navigasi"
+                aria-expanded={drawerOpen}
+                aria-haspopup="dialog"
                 className="flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-xs min-w-[56px] text-gray-400 transition-colors hover:text-gray-600 active:scale-95"
               >
                 <Menu className="h-5 w-5" />
@@ -82,11 +105,19 @@ export function BottomNav() {
           />
 
           {/* Panel */}
-          <div className="fixed bottom-0 left-0 right-0 z-[61] max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-10 pt-4 shadow-xl md:hidden animate-slide-up">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="drawer-title"
+            tabIndex={-1}
+            className="fixed bottom-0 left-0 right-0 z-[61] max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-10 pt-4 shadow-xl md:hidden animate-slide-up"
+          >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-heading text-base font-bold text-foreground">Menu</h3>
+              <h3 id="drawer-title" className="font-heading text-base font-bold text-foreground">Menu</h3>
               <button
                 onClick={() => setDrawerOpen(false)}
+                aria-label="Tutup menu"
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
               >
                 <X className="h-4 w-4" />
@@ -101,6 +132,7 @@ export function BottomNav() {
                     key={href}
                     href={href}
                     onClick={() => setDrawerOpen(false)}
+                    aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                       prominent
@@ -119,6 +151,7 @@ export function BottomNav() {
                 <Link
                   href="/admin"
                   onClick={() => setDrawerOpen(false)}
+                  aria-current={pathname === "/admin" ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                     pathname === "/admin"

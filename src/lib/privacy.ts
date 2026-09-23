@@ -13,7 +13,6 @@ export const PUBLIC_USER_FIELDS = [
   "district",
   "avatar_url",
   "availability_status",
-  "availability_mode",
   "unavailable_reason",
   "eligibility_status",
   "ready_again_date",
@@ -24,10 +23,8 @@ export const PUBLIC_USER_FIELDS = [
   "verification_level",
   "trust_score",
   "national_donor_id",
-  "contact_consent",
   "gender",
   "created_at",
-  "updated_at",
 ] as const;
 
 export const PUBLIC_BLOOD_REQUEST_FIELDS = [

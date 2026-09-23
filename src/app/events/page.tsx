@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -28,16 +28,37 @@ export default function EventsPage() {
   const { isAdmin } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState<"upcoming" | "all" | "past">("upcoming");
-  const [visible, setVisible] = useState(12);
+  const [hasMore, setHasMore] = useState(false);
   const PAGE_STEP = 12;
 
-  useEffect(() => {
-    api.get<{ events: Event[] }>("/events")
-      .then(d => setEvents(d.events || []))
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
+  const fetchEvents = useCallback(async (status: typeof filter, offset: number, append: boolean) => {
+    try {
+      const params = new URLSearchParams({ status, limit: String(PAGE_STEP), offset: String(offset) });
+      const d = await api.get<{ events: Event[] }>(`/events?${params}`);
+      setEvents(prev => append ? [...prev, ...(d.events || [])] : (d.events || []));
+      setHasMore((d.events || []).length === PAGE_STEP);
+      setError(false);
+    } catch {
+      if (!append) setEvents([]);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  const changeFilter = (f: typeof filter) => {
+    setFilter(f);
+    setLoading(true);
+    setError(false);
+  };
+
+  useEffect(() => {
+    fetchEvents(filter, 0, false);
+  }, [filter, fetchEvents]);
+
+  const loadMore = () => fetchEvents(filter, events.length, true);
 
   const formatDate = (d: string) => {
     const date = new Date(d);
@@ -84,14 +105,22 @@ export default function EventsPage() {
             key={opt}
             variant={filter === opt ? "default" : "outline"}
             size="sm"
-            onClick={() => { setFilter(opt); setVisible(PAGE_STEP); }}
+            onClick={() => changeFilter(opt)}
           >
             {opt === "upcoming" ? "Akan Datang" : opt === "all" ? "Semua" : "Selesai"}
           </Button>
         ))}
       </div>
 
-      {loading ? (
+      {error && !loading ? (
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => { setLoading(true); fetchEvents(filter, 0, false); }}>
+            Coba Lagi
+          </Button>
+        </GlassCard>
+      ) : loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
             <GlassCard key={i} className="animate-pulse">
@@ -101,7 +130,7 @@ export default function EventsPage() {
             </GlassCard>
           ))}
         </div>
-      ) : filteredEvents.length === 0 ? (
+      ) : events.length === 0 ? (
         <GlassCard className="py-12 text-center animate-fade-in">
           <CalendarDays className="mx-auto h-12 w-12 text-gray-200" />
           <p className="mt-2 font-medium text-foreground">
@@ -119,7 +148,7 @@ export default function EventsPage() {
       ) : (
         <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredEvents.slice(0, visible).map((event, i) => {
+          {events.map((event, i) => {
             const imgUrl = eventImgUrl(event);
             return (
             <GlassCard
@@ -162,10 +191,10 @@ export default function EventsPage() {
             );
           })}
         </div>
-        {visible < filteredEvents.length && (
+        {hasMore && !error && (
           <div className="mt-6 text-center">
-            <Button variant="outline" onClick={() => setVisible(v => v + PAGE_STEP)}>
-              Lihat Lebih Banyak ({filteredEvents.length - visible} tersisa)
+            <Button variant="outline" onClick={loadMore} disabled={loading}>
+              Muat Lebih Banyak
             </Button>
           </div>
         )}

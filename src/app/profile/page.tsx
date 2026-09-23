@@ -99,6 +99,10 @@ export default function ProfilePage() {
     });
   }, [user]);
 
+  // Lazily load only the cascading level the current selection needs
+  useEffect(() => { wilayah.loadRegencies(form.province); }, [form.province, wilayah.loadRegencies]);
+  useEffect(() => { wilayah.loadDistricts(form.city); }, [form.city, wilayah.loadDistricts]);
+
   const updateProfile = async () => {
     try {
       let avatarUrl = "";
@@ -461,7 +465,7 @@ export default function ProfilePage() {
                     <Select value={form.city || "none"} onValueChange={v => { const val = (v === "none" ? "" : v) || ""; setForm(p => ({ ...p, city: val, district: p.city === val ? p.district : "" })); }} disabled={!form.province}>
                       <SelectTrigger><SelectValue placeholder={form.province ? "Pilih kota" : "Pilih provinsi dulu"} /></SelectTrigger>
                       <SelectContent>
-                        {wilayah.getRegencies(form.province).map(r => <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>)}
+                        {wilayah.regencies.map(r => <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -469,7 +473,7 @@ export default function ProfilePage() {
                     <Select value={form.district || "none"} onValueChange={v => setForm(p => ({ ...p, district: (v === "none" ? "" : v) || "" }))} disabled={!form.city}>
                       <SelectTrigger><SelectValue placeholder={form.city ? "Pilih kecamatan" : "Pilih kota dulu"} /></SelectTrigger>
                       <SelectContent>
-                        {wilayah.getDistricts(form.city).map(d => <SelectItem key={d.code} value={d.code}>{d.name}</SelectItem>)}
+                        {wilayah.districts.map(d => <SelectItem key={d.code} value={d.code}>{d.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

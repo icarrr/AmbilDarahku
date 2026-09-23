@@ -15,7 +15,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: user } = await supabase.from("users").select("*").eq("username", username).maybeSingle();
   if (!user) return NextResponse.json({ error: "user not found" }, { status: 404 });
 
-  const { data: passport } = await supabase.from("donor_passports").select("*").eq("user_id", user.id).maybeSingle();
+  // Public only — never expose qr_token (QR verify secret).
+  const { data: passport } = await supabase
+    .from("donor_passports")
+    .select("id, user_id, passport_number, issued_at, last_renewed_at, is_active")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   const { data: userBadges } = await supabase
     .from("user_badges")

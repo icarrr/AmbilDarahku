@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
-import { getFileUrl } from "@/lib/file";
+import { getFileUrl } from "@/lib/file-url";
 
 type ClaimWithUser = {
   id: string;

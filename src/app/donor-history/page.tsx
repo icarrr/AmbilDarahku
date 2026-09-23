@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText, Pencil, Trash2 } from "lucide-react";
-import { getFileUrl } from "@/lib/file";
+import { getFileUrl } from "@/lib/file-url";
 import { SkeletonCard } from "@/components/ui/skeleton";
 
 type History = {

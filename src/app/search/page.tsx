@@ -11,6 +11,7 @@ import { MapPin, SlidersHorizontal, MessageCircle, LogIn, Filter, ShieldAlert } 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { coordinatorWaLink } from "@/lib/coordinator";
+import { getAppUrl } from "@/lib/url";
 import { ReportDialog } from "@/components/report-dialog";
 
 type Donor = {
@@ -46,10 +47,12 @@ export default function SearchPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [showFilters, setShowFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState(false);
 
   const search = useCallback(async () => {
     setLoading(true);
     setHasSearched(true);
+    setError(false);
     try {
       const params = new URLSearchParams();
       if (bloodType) params.set("blood_type", bloodType);
@@ -61,6 +64,7 @@ export default function SearchPage() {
       setDonors(data.donors || []);
     } catch {
       setDonors([]);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -174,6 +178,18 @@ export default function SearchPage() {
                 </GlassCard>
               ))}
             </div>
+          ) : error ? (
+            <GlassCard className="py-12 text-center">
+              <ShieldAlert className="mx-auto h-10 w-10 text-gray-300" />
+              <p className="mt-2 text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
+              <p className="text-xs text-[#94a3b8]">Silakan coba lagi.</p>
+              <button
+                onClick={search}
+                className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-foreground hover:bg-gray-50"
+              >
+                Coba Lagi
+              </button>
+            </GlassCard>
           ) : donors.length === 0 && hasSearched ? (
             <GlassCard className="py-12 text-center">
               <MapPin className="mx-auto h-10 w-10 text-gray-300" />
@@ -237,8 +253,9 @@ export default function SearchPage() {
                     </Link>
                     <div className={cn("flex flex-col gap-1.5", viewMode === "grid" ? "mt-3" : "w-full sm:w-auto flex-shrink-0")}>
                       {(() => {
+                        const profileHref = `${getAppUrl()}/u/${donor.username || donor.id}`;
                         const wa = coordinatorWaLink(
-                          `Halo, saya mencari donor darah ${donor.blood_type} di ${donor.city_name || donor.city}. Apakah ada donor yang tersedia?`
+                          `Halo, saya mencari donor darah ${donor.blood_type} di ${donor.city_name || donor.city}. Apakah bisa di hubungkan ke "${donor.full_name}"? ${profileHref}`
                         );
                         return wa ? (
                           <a href={wa}

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -69,16 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      refreshUser().finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const data = await api.get<{ user: User }>("/auth/me");
       setUser(data.user);
@@ -87,9 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("refresh_token");
       setUser(null);
     }
-  };
+  }, []);
 
-  const login = async (email: string, password: string) => {
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      refreshUser().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [refreshUser]);
+
+  const login = useCallback(async (email: string, password: string) => {
     const data = await api.post<{
       user: User;
       access_token: string;
@@ -98,9 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", data.access_token);
     localStorage.setItem("refresh_token", data.refresh_token);
     setUser(data.user);
-  };
+  }, []);
 
-  const register = async (regData: RegisterData) => {
+  const register = useCallback(async (regData: RegisterData) => {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
@@ -124,9 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("refresh_token", data.refresh_token);
     setUser(data.user);
     return data;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
     } catch {
@@ -136,13 +136,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("refresh_token");
     setUser(null);
     router.push("/");
-  };
+  }, [router]);
 
-  return (
-    <AuthContext.Provider value={{ user, loading, isAdmin: user?.role === "super_admin", isUnverified: user ? !user.email_verified : false, login, register, logout, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
+  // Stable context value — no re-renders of consumers on provider/nav changes
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      loading,
+      isAdmin: user?.role === "super_admin",
+      isUnverified: user ? !user.email_verified : false,
+      login,
+      register,
+      logout,
+      refreshUser,
+    }),
+    [user, loading, login, register, logout, refreshUser]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

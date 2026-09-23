@@ -22,7 +22,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .order("awarded_at", { ascending: false });
 
   const { data: titles } = await supabase.from("user_titles").select("*").eq("user_id", user.id).order("awarded_at", { ascending: false });
-  const { data: passport } = await supabase.from("donor_passports").select("*").eq("user_id", user.id).maybeSingle();
+  // Public only — never expose qr_token (QR verify secret).
+  const { data: passport } = await supabase
+    .from("donor_passports")
+    .select("id, user_id, passport_number, issued_at, last_renewed_at, is_active")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   const badges = (userBadges || []).map((ub: any) => ({
     ...ub,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
 import { requireAuth, isAuthContext, checkVerifiedEmail, checkPMIOrAdmin } from "@/lib/auth-middleware";
 import { lookupName } from "@/lib/data/wilayah";
+import { getPool } from "@/lib/pg";
 
 export const runtime = "nodejs";
 
@@ -10,21 +10,17 @@ export async function GET(request: NextRequest) {
   const ve = checkVerifiedEmail(auth, request); if (ve) return ve;
   const pmi = checkPMIOrAdmin(auth); if (pmi) return pmi;
 
-  const { data: rows } = await supabase
-    .from("users")
-    .select("city")
-    .neq("city", "")
-    .not("city", "is", null);
+  // GROUP BY in SQL — only top-20 shipped to JS (counts only, no full column scan)
+  const { rows } = await getPool().query<{ city: string; count: number }>(
+    `SELECT city, COUNT(*)::int AS count
+     FROM users
+     WHERE city IS NOT NULL AND city <> ''
+     GROUP BY city
+     ORDER BY count DESC
+     LIMIT 20`
+  );
 
-  const map = new Map<string, number>();
-  for (const r of rows || []) {
-    map.set(r.city, (map.get(r.city) || 0) + 1);
-  }
-
-  const cities = Array.from(map.entries())
-    .map(([city, count]) => ({ city, city_name: lookupName(city), count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 20);
+  const cities = rows.map((r) => ({ city: r.city, city_name: lookupName(r.city), count: r.count }));
 
   return NextResponse.json({ cities });
 }

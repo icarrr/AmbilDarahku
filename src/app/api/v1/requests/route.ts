@@ -14,14 +14,21 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const bloodType = url.searchParams.get("blood_type");
   const urgency = url.searchParams.get("urgency");
+  const status = url.searchParams.get("status") || "open"; // open | all
+  const search = url.searchParams.get("search");
+  const hospital = url.searchParams.get("hospital");
   const limit = clampLimit(url.searchParams.get("limit"), 20, 30);
 
   let query = supabase
     .from("blood_requests")
     .select(PUBLIC_BLOOD_REQUEST_FIELDS.join(","));
 
+  // Server-side filtering — no full fetch + client filter
+  if (status === "open") query = query.eq("status", "open");
   if (bloodType) query = query.eq("blood_type", bloodType);
   if (urgency) query = query.eq("urgency", urgency);
+  if (search) query = query.ilike("patient_name", `%${search}%`);
+  if (hospital) query = query.eq("hospital", hospital);
 
   query = query.order("urgency", { ascending: false });
   query = query.order("created_at", { ascending: false });

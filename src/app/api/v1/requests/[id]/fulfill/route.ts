@@ -85,12 +85,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: badges } = await supabase.from("badges").select("*").order("min_donations");
     const { data: donor } = await supabase.from("users").select("total_donations").eq("id", auth.userId).maybeSingle();
     if (badges && donor) {
-      for (const b of badges) {
-        if (donor.total_donations >= b.min_donations) {
-          const { data: existing } = await supabase.from("user_badges").select("id").eq("user_id", auth.userId).eq("badge_id", b.id).maybeSingle();
-          if (!existing) {
-            await supabase.from("user_badges").insert({ user_id: auth.userId, badge_id: b.id });
-          }
+      // Batch — one existence query + single insert instead of 2 queries per badge
+      const eligibleIds = badges
+        .filter((b: any) => donor.total_donations >= b.min_donations)
+        .map((b: any) => b.id);
+      if (eligibleIds.length > 0) {
+        const { data: existingRows } = await supabase
+          .from("user_badges")
+          .select("badge_id")
+          .eq("user_id", auth.userId)
+          .in("badge_id", eligibleIds);
+        const have = new Set((existingRows || []).map((r: any) => r.badge_id));
+        const missing = eligibleIds.filter((id: string) => !have.has(id));
+        if (missing.length > 0) {
+          await supabase.from("user_badges").insert(missing.map((badge_id: string) => ({ user_id: auth.userId, badge_id })));
         }
       }
     }

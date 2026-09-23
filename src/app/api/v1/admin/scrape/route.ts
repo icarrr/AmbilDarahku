@@ -35,9 +35,31 @@ export async function GET(request: NextRequest) {
       ),
     ]);
 
+    // pg_cron job diagnostics — null when pg_cron unavailable (local/docker)
+    let cronJob: Record<string, unknown> | null = null;
+    let cronRuns: Record<string, unknown>[] = [];
+    try {
+      const [{ rows: j }, { rows: jr }] = await Promise.all([
+        pool.query(
+          `SELECT jobname, schedule, command, active
+           FROM cron.job WHERE jobname = 'adk-scrape'`
+        ),
+        pool.query(
+          `SELECT status, return_message, start_time, end_time
+           FROM cron.job_run_details WHERE jobname = 'adk-scrape'
+           ORDER BY start_time DESC LIMIT 5`
+        ),
+      ]);
+      cronJob = j[0] || null;
+      cronRuns = jr;
+    } catch {
+      // pg_cron not installed — fine, Vercel Cron covers scheduling
+    }
+
     const job = jobs[0] || null;
     const intervalMinutes = parseInt(process.env.SCRAPE_INTERVAL_MINUTES || "60", 10);
-    const enabled = !!process.env.SCRAPE_TARGET_URL && !!process.env.CRON_SECRET;
+    const pgCronEnabled = !!process.env.SCRAPE_TARGET_URL && !!process.env.CRON_SECRET;
+    const enabled = pgCronEnabled; // Vercel Cron runs regardless (vercel.json)
 
     const lastRun = runs[0] || null;
     const nextRunAt = enabled && lastRun?.started_at
@@ -82,6 +104,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       enabled,
+      scheduler: "vercel-cron",
+      pgCronJob: cronJob,
+      pgCronRuns: cronRuns,
       intervalMinutes,
       status: job?.status || "IDLE",
       lockStartedAt: job?.started_at || null,

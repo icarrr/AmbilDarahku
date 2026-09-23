@@ -27,6 +27,17 @@ export function isSchedulerAuthorized(request: NextRequest): boolean {
 }
 
 /**
+ * Vercel Cron trigger. The x-vercel-cron header is injected by the hosting
+ * platform itself and stripped from client requests — matching the configured
+ * expression is sufficient auth (no secret over the wire).
+ * Configured via vercel.json (crons → /api/v1/discover).
+ */
+export function isVercelCron(request: NextRequest): boolean {
+  const expr = process.env.VERCEL_CRON_EXPR || "0 * * * *";
+  return request.headers.get("x-vercel-cron") === expr;
+}
+
+/**
  * Atomic lock — single statement. Exactly one caller wins.
  * INSERT wins (first time), or UPDATE succeeds when free / stale-locked.
  * Stale RUNNING locks (crashed process) are recovered after locked_until expires.

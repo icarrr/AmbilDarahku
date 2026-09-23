@@ -1,50 +1,74 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type WilayahItem = { id: string; JENIS: number; DESKRIPSI: string };
+type Option = { code: string; name: string };
 
 function titleCase(s: string): string {
   return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function useWilayah() {
-  const [data, setData] = useState<WilayahItem[]>([]);
-
-  useEffect(() => {
-    fetch("/data/wilayah.json")
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {});
-  }, []);
-
-  const provinces = data
-    .filter((w) => w.JENIS === 1)
+function toOptions(items: WilayahItem[]): Option[] {
+  return items
     .map((w) => ({ code: w.id, name: titleCase(w.DESKRIPSI) }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  const getRegencies = (provCode: string) =>
-    data
-      .filter((w) => w.JENIS === 2 && w.id.startsWith(provCode))
-      .map((w) => ({ code: w.id, name: titleCase(w.DESKRIPSI) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+// Module-level cache — refetch-free across hook instances and remounts
+const cache = new Map<string, WilayahItem[]>();
 
-  const getDistricts = (regencyCode: string) =>
-    data
-      .filter((w) => w.JENIS === 3 && w.id.startsWith(regencyCode))
-      .map((w) => ({ code: w.id, name: titleCase(w.DESKRIPSI) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+async function fetchJson(url: string): Promise<WilayahItem[]> {
+  const hit = cache.get(url);
+  if (hit) return hit;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const items: WilayahItem[] = await res.json();
+    cache.set(url, items);
+    return items;
+  } catch {
+    return [];
+  }
+}
 
-  const getName = (code: string): string => {
-    const item = data.find((w) => w.id === code);
-    return item ? titleCase(item.DESKRIPSI) : code;
-  };
+// Lazy per-level loading — only fetches what the current selection needs,
+// instead of shipping the whole 586KB wilayah.json on page load.
+export function useWilayah() {
+  const [provinces, setProvinces] = useState<Option[]>([]);
+  const [regencies, setRegencies] = useState<Option[]>([]);
+  const [districts, setDistricts] = useState<Option[]>([]);
+
+  useEffect(() => {
+    fetchJson("/data/provinces.json").then((items) => setProvinces(toOptions(items)));
+  }, []);
+
+  const loadRegencies = useCallback(async (provCode: string | null | undefined) => {
+    if (!provCode) {
+      setRegencies([]);
+      setDistricts([]);
+      return;
+    }
+    const items = await fetchJson(`/data/regencies/${provCode}.json`);
+    setRegencies(toOptions(items));
+    setDistricts([]);
+  }, []);
+
+  const loadDistricts = useCallback(async (regencyCode: string | null | undefined) => {
+    if (!regencyCode) {
+      setDistricts([]);
+      return;
+    }
+    const items = await fetchJson(`/data/districts/${regencyCode}.json`);
+    setDistricts(toOptions(items));
+  }, []);
 
   return {
-    loaded: data.length > 0,
+    loaded: provinces.length > 0,
     provinces,
-    getRegencies,
-    getDistricts,
-    getName,
+    regencies,
+    districts,
+    loadRegencies,
+    loadDistricts,
   };
 }
