@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useWilayah } from "@/lib/hooks/useWilayah";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
 import { coordinatorWaLink } from "@/lib/coordinator";
+import { getAppUrl } from "@/lib/url";
 import {
   Award, Bell,
   CalendarDays, Camera, ChevronRight,
@@ -374,8 +375,11 @@ export default function ProfilePage() {
                     </div>
                     <div className="mt-3">
                       {(() => {
+                        const profileUrl = user
+                          ? `${getAppUrl()}/u/${user.username || user.id}`
+                          : "";
                         const wa = coordinatorWaLink(
-                          `Halo, saya ingin membantu donor darah untuk pasien di ${req.hospital} (${req.city}). Golongan darah ${req.blood_type}.`
+                          `Halo, saya ingin membantu donor darah untuk pasien "${req.patient_name}" (${req.blood_type}) di ${req.hospital}. Apakah bisa di hubungkan?${profileUrl ? ` ${profileUrl}` : ""}`
                         );
                         return wa ? (
                           <a

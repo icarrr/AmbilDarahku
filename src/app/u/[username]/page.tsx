@@ -7,6 +7,7 @@ import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { GlassCard } from "@/components/glass-card";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
+import { AdminContactCard } from "@/components/admin-contact-card";
 import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck } from "lucide-react";
 import { lookupName } from "@/lib/data/wilayah";
 import { PUBLIC_USER_FIELDS, toPublicUser } from "@/lib/privacy";
@@ -34,6 +35,7 @@ type UserBadge = {
 };
 
 type PublicProfile = {
+  id: string;
   full_name: string;
   avatar_url?: string | null;
   blood_type: string;
@@ -139,6 +141,9 @@ export default async function PublicPortfolioPage({
           {isAvailable ? "Siap Donor" : profile.availability_status === "temporarily_unavailable" ? "Sedang Tidak Tersedia" : "Tidak Aktif"}
         </div>
       </div>
+
+      {/* Admin-only — phone/email/details fetched client-side, never in SSR HTML */}
+      <AdminContactCard userId={profile.id} />
 
       {badges.length > 0 && (
         <div className="mt-6 grid grid-cols-4 gap-3">

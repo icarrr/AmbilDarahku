@@ -12,6 +12,7 @@ import { Droplets, MapPin, Plus, Clock, AlertTriangle, MessageCircle, ShieldAler
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { coordinatorWaLink } from "@/lib/coordinator";
+import { getAppUrl } from "@/lib/url";
 import { ReportDialog } from "@/components/report-dialog";
 
 type BloodRequest = {
@@ -164,13 +165,11 @@ export default function RequestsPage() {
                         <span>{req.fulfilled_bags || 0}/{req.bags} &middot; {req.bags - (req.fulfilled_bags || 0)} sisa</span>
                       </div>
                       {(() => {
+                        const profileUrl = user
+                          ? `${getAppUrl()}/u/${user.username || user.id}`
+                          : "";
                         const wa = coordinatorWaLink(
-                          `Halo, saya ingin membantu donor darah untuk:\n\n` +
-                          `\u{1FA78} Golongan Darah: ${req.blood_type}\n` +
-                          `\u{1F464} Pasien: ${req.patient_name}\n` +
-                          `\u{1F3E5} Rumah Sakit: ${req.hospital}${req.city ? `, ${req.city}` : ""}\n` +
-                          `\u{1F4E6} Kebutuhan: ${req.bags} kantong (${req.bags - (req.fulfilled_bags || 0)} tersisa)\n` +
-                          `Mohon info lebih lanjut. Terima kasih.`
+                          `Halo, saya ingin membantu donor darah untuk pasien "${req.patient_name}" (${req.blood_type}) di ${req.hospital}. Apakah bisa di hubungkan?${profileUrl ? ` ${profileUrl}` : ""}`
                         );
                         return wa ? (
                           <a

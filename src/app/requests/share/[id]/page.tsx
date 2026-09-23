@@ -278,14 +278,11 @@ ${pageUrl}`;
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Hubungi / Scan</p>
               {(() => {
+                const profileUrl = user
+                  ? `${getAppUrl()}/u/${user.username || user.id}`
+                  : "";
                 const wa = coordinatorWaLink(
-                  `Halo, saya ingin membantu donor darah untuk:\n\n` +
-                  `🩸 Golongan Darah: ${bloodDisplay}\n` +
-                  `👤 Pasien: ${request.patient_name}\n` +
-                  `🏥 Rumah Sakit: ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}\n` +
-                  `📦 Kebutuhan: ${request.bags} kantong (${remaining} tersisa)\n` +
-                  `⚠️ Urgensi: ${request.urgency === "critical" ? "KRITIS" : request.urgency === "urgent" ? "MENDESAK" : "Biasa"}\n\n` +
-                  `Mohon info lebih lanjut. Terima kasih.`
+                  `Halo, saya ingin membantu donor darah untuk pasien "${request.patient_name}" (${bloodDisplay}) di ${request.hospital}. Apakah bisa di hubungkan?${profileUrl ? ` ${profileUrl}` : ""}`
                 );
                 return wa ? (
                   <a
