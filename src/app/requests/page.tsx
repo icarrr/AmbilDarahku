@@ -137,79 +137,80 @@ export default function RequestsPage() {
       ) : (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           {requests.map((req, i) => (
-            <Link key={req.id} href={`/requests/share/${req.id}`} className={`block cursor-pointer animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
+            <div key={req.id} className={`animate-slide-up stagger-${Math.min(i + 1, 6)}`}>
               <GlassCard>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${
-                      req.urgency === "critical" ? "bg-red-100" : req.urgency === "urgent" ? "bg-amber-100" : "bg-blue-100"
-                    }`}>
-                      <Droplets className={`h-5 w-5 ${
-                        req.urgency === "critical" ? "text-red-600" : req.urgency === "urgent" ? "text-amber-600" : "text-blue-600"
-                      }`} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-foreground">{req.patient_name}</p>
-                        <BloodTypeBadge type={req.blood_type} size="sm" />
+                <Link href={`/requests/share/${req.id}`} className="block cursor-pointer">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${
+                        req.urgency === "critical" ? "bg-red-100" : req.urgency === "urgent" ? "bg-amber-100" : "bg-blue-100"
+                      }`}>
+                        <Droplets className={`h-5 w-5 ${
+                          req.urgency === "critical" ? "text-red-600" : req.urgency === "urgent" ? "text-amber-600" : "text-blue-600"
+                        }`} />
                       </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{req.hospital}{req.city ? `, ${req.city}` : ""}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-[#94a3b8]">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {timeAgo(req.created_at)}
-                        </span>
-                        <span>{req.fulfilled_bags || 0}/{req.bags} &middot; {req.bags - (req.fulfilled_bags || 0)} sisa</span>
-                      </div>
-                      {(() => {
-                        const profileUrl = user
-                          ? `${getAppUrl()}/u/${user.username || user.id}`
-                          : "";
-                        const wa = coordinatorWaLink(
-                          `Halo, saya ingin membantu donor darah untuk pasien "${req.patient_name}" (${req.blood_type}) di ${req.hospital}. Apakah bisa di hubungkan?${profileUrl ? ` ${profileUrl}` : ""}`
-                        );
-                        return wa ? (
-                          <a
-                            href={wa}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            <MessageCircle className="h-3 w-3" />
-                            Hubungi Koordinator
-                          </a>
-                        ) : null;
-                      })()}
-                      <span onClick={e => e.stopPropagation()} className="mt-0.5 inline-block">
-                        <ReportDialog targetType="blood_request" targetId={req.id} />
-                      </span>
-                      <div className="mt-1 flex items-start gap-1 text-[10px] text-amber-700">
-                        <ShieldAlert className="mt-0.5 h-3 w-3 flex-shrink-0" />
-                        <span>Donor darah tidak dipungut biaya. Jangan berikan uang kepada siapa pun.</span>
-                      </div>
-                      {(req.fulfilled_bags || 0) > 0 && (
-                        <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-gray-100">
-                          <div
-                            className="h-full rounded-full bg-emerald-500"
-                            style={{ width: `${Math.min((req.fulfilled_bags / req.bags) * 100, 100)}%` }}
-                          />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-foreground">{req.patient_name}</p>
+                          <BloodTypeBadge type={req.blood_type} size="sm" />
                         </div>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{req.hospital}{req.city ? `, ${req.city}` : ""}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-[#94a3b8]">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {timeAgo(req.created_at)}
+                          </span>
+                          <span>{req.fulfilled_bags || 0}/{req.bags} &middot; {req.bags - (req.fulfilled_bags || 0)} sisa</span>
+                        </div>
+                        <div className="mt-1 flex items-start gap-1 text-[10px] text-amber-700">
+                          <ShieldAlert className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                          <span>Donor darah tidak dipungut biaya. Jangan berikan uang kepada siapa pun.</span>
+                        </div>
+                        {(req.fulfilled_bags || 0) > 0 && (
+                          <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-gray-100">
+                            <div
+                              className="h-full rounded-full bg-emerald-500"
+                              style={{ width: `${Math.min((req.fulfilled_bags / req.bags) * 100, 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 flex flex-col gap-1 items-end">
+                      <UrgencyBadge level={req.urgency} />
+                      {req.status === "fulfilled" && (
+                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Selesai</span>
                       )}
                     </div>
                   </div>
-                  <div className="flex-shrink-0 flex flex-col gap-1 items-end">
-                    <UrgencyBadge level={req.urgency} />
-                    {req.status === "fulfilled" && (
-                      <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Selesai</span>
-                    )}
-                  </div>
+                </Link>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  {(() => {
+                    const profileUrl = user
+                      ? `${getAppUrl()}/u/${user.username || user.id}`
+                      : "";
+                    const wa = coordinatorWaLink(
+                      `Halo, saya ingin membantu donor darah untuk pasien "${req.patient_name}" (${req.blood_type}) di ${req.hospital}. Apakah bisa di hubungkan?${profileUrl ? ` ${profileUrl}` : ""}`
+                    );
+                    return wa ? (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700"
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                        Hubungi Koordinator
+                      </a>
+                    ) : null;
+                  })()}
+                  <ReportDialog targetType="blood_request" targetId={req.id} />
                 </div>
               </GlassCard>
-            </Link>
+            </div>
           ))}
         </div>
       )}
