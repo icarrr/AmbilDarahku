@@ -1,6 +1,7 @@
 import { Pool } from "pg";
+import { createHash } from "crypto";
 import axios from "axios";
-import { put } from "@vercel/blob";
+import { put, head } from "@vercel/blob";
 import { scrapeStaticHtml } from "@/lib/scrapers/static-html-scraper";
 import { scrapeAyodonor } from "@/lib/scrapers/ayodonor-scraper";
 import { scrapePmiBali } from "@/lib/scrapers/pmibali-scraper";
@@ -8,6 +9,34 @@ import { SEED_SOURCES } from "@/lib/scrapers/source-registry";
 import { ScrapedEvent, SourceConfig, DiscoverResult } from "@/lib/event-discovery/types";
 import { filterNewEvents } from "@/lib/event-discovery/deduplicator";
 import { archiveExpiredEvents } from "@/lib/event-discovery/archiver";
+
+/**
+ * Deterministic blob key from the source image URL. Same URL across events or
+ * repeated scrapes → same key → stored once (head-before-put skips re-upload).
+ * Avoids the old `events/${originalName}` key where two different images with
+ * the same filename overwrote each other's blob.
+ * Extension comes from the URL itself so the head-check and put always agree —
+ * the blob's real content-type is stored as metadata at upload time.
+ */
+function posterBlobPath(imageUrl: string): string {
+  const hash = createHash("sha1").update(imageUrl).digest("hex").slice(0, 24);
+  const m = imageUrl.match(/\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i);
+  const ext = m ? m[1].toLowerCase().replace("jpeg", "jpg") : "webp";
+  return `events/${hash}.${ext}`;
+}
+
+/** True if the blob already exists — cheap simple op, avoids a put() (advanced op). */
+async function blobExists(path: string): Promise<boolean> {
+  try {
+    await head(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const MAX_POSTER_ATTEMPTS = 3;
+const POSTER_RETRY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function extractCityFromLocation(loc: string): string {
   const parts = loc.split(",").map((s) => s.trim());
@@ -200,15 +229,20 @@ async function downloadEventImages(events: ScrapedEvent[]) {
       try {
         const url = e.rawData!.image_url;
         if (!url || typeof url !== "string") return;
+
+        const path = posterBlobPath(url);
+        // Already uploaded by an earlier run or a different event → reuse it.
+        if (await blobExists(path)) {
+          e.posterUrl = path;
+          return;
+        }
+
         const imgRes = await axios.get(url, {
           responseType: "arraybuffer",
           timeout: IMAGE_TIMEOUT_MS,
         });
         const buffer = Buffer.from(imgRes.data);
         const contentType = String(imgRes.headers["content-type"] || "image/webp");
-        // Preserve original filename so repeated scrapes overwrite same blob key
-        const originalName = url.split("/").filter(Boolean).pop() || `image.${contentType.includes("png") ? "png" : "webp"}`;
-        const path = `events/${originalName}`;
         await put(path, buffer, { access: "private", contentType, allowOverwrite: true });
         e.posterUrl = path;
       } catch (imgErr: any) {
@@ -219,15 +253,19 @@ async function downloadEventImages(events: ScrapedEvent[]) {
 }
 
 async function backfillMissingPosters(pool: Pool) {
-  // Bound scope: recent non-archived events only, capped each run — avoids
-  // re-scanning/rescanning the whole table on every hourly cycle.
+  // Bound scope: recent non-archived events only, capped each run; attempts
+  // are throttled — a source that keeps failing retries at most
+  // MAX_POSTER_ATTEMPTS times, then waits for the cooldown before another try.
   const { rows } = await pool.query(
-    `SELECT id, raw_data FROM events
+    `SELECT id, raw_data, poster_attempts, poster_attempted_at FROM events
      WHERE poster_url IS NULL AND is_archived = false
        AND raw_data IS NOT NULL AND raw_data->>'image_url' != ''
        AND created_at >= NOW() - interval '30 days'
+       AND poster_attempts < $1
+       AND (poster_attempted_at IS NULL OR poster_attempted_at < NOW() - make_interval(secs => $2))
      ORDER BY created_at DESC
-     LIMIT 100`
+     LIMIT 100`,
+    [MAX_POSTER_ATTEMPTS, POSTER_RETRY_COOLDOWN_MS / 1000]
   );
   if (rows.length === 0) return;
   console.log(`Backfilling ${rows.length} missing poster images...`);
@@ -241,16 +279,23 @@ async function backfillMissingPosters(pool: Pool) {
         const url = rawData?.image_url;
         if (!url || typeof url !== "string") return;
 
-        const imgRes = await axios.get(url, { responseType: "arraybuffer", timeout: 8000 });
-        const buffer = Buffer.from(imgRes.data);
-        const contentType = String(imgRes.headers["content-type"] || "image/webp");
-        const originalName = url.split("/").filter(Boolean).pop() || `image.${contentType.includes("png") ? "png" : "webp"}`;
-        const path = `events/${originalName}`;
-
-        await put(path, buffer, { access: "private", contentType, allowOverwrite: true });
-        await pool.query("UPDATE events SET poster_url = $1 WHERE id = $2", [path, row.id]);
+        const path = posterBlobPath(url);
+        if (!(await blobExists(path))) {
+          const imgRes = await axios.get(url, { responseType: "arraybuffer", timeout: 8000 });
+          const buffer = Buffer.from(imgRes.data);
+          const contentType = String(imgRes.headers["content-type"] || "image/webp");
+          await put(path, buffer, { access: "private", contentType, allowOverwrite: true });
+          await pool.query("UPDATE events SET poster_url = $1 WHERE id = $2", [path, row.id]);
+        } else {
+          // Blob already exists from a previous run/event — adopt it without re-uploading.
+          await pool.query("UPDATE events SET poster_url = $1, poster_attempts = 0, poster_attempted_at = NULL WHERE id = $2", [path, row.id]);
+        }
       } catch (err: any) {
         console.warn(`  Failed to backfill poster for event ${row.id}: ${err.message}`);
+        await pool.query(
+          `UPDATE events SET poster_attempts = poster_attempts + 1, poster_attempted_at = NOW() WHERE id = $1`,
+          [row.id]
+        );
       }
     }));
   }
