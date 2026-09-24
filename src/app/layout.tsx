@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { BottomNav } from "@/components/bottom-nav";
 import { DesktopSidebar } from "@/components/desktop-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +57,7 @@ export default function RootLayout({
           <main className="flex-1 pb-20 md:pb-0 md:ml-64">{children}</main>
           <BottomNav />
           <Toaster />
+          <Analytics />
         </AuthProvider>
       </body>
     </html>
