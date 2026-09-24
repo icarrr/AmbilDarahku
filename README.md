@@ -1,73 +1,75 @@
 # AmbilDarahku
 
-Platform donor darah berbasis komunitas untuk Indonesia. Membantu pendonor menemukan permintaan darah darurat di sekitarnya dan membantu keluarga pasien menemukan pendonor yang cocok dan tersedia.
+A community-based blood donor platform for Indonesia. It helps donors find urgent blood requests nearby and helps patients' families find compatible, available donors.
 
 ## Overview
 
-AmbilDarahku adalah aplikasi web yang menghubungkan pendonor darah dengan pasien/pihak yang membutuhkan darah. Donor dapat mengelola status ketersediaan, mencatat riwayat donasi, membangun reputasi (verifikasi, trust score, badge), dan mendapatkan pengakuan atas kontribusinya. Admin dapat mengelola pengguna, permintaan, klaim donasi, verifikasi, penghargaan, serta memantau data via dashboard analytics.
+AmbilDarahku is a web application that connects blood donors with patients or parties in need of blood. Donors can manage their availability status, record donation history, build reputation (verification levels, trust score, badges), and receive recognition for their contributions. Administrators can manage users, requests, donation claims, verifications, awards, and monitor data through an analytics dashboard.
 
-Alur utama:
+The main workflow is:
 
-1. Pendonor mendaftar dan melengkapi profil (golongan darah, domisili, berat badan).
-2. Pasien/keluarga membuat permintaan darah darurat dan membagikan kartu permintaan (QR + kompatibilitas).
-3. Pendonor yang cocok dan tersedia menghubungi koordinator atau menandai permintaan sebagai dipenuhi.
-4. Donasi dicatat ke riwayat donor; verifikasi dan penghargaan memperkuat kredibilitas donor.
-5. Data permintaan dan event donor darah disinkronkan otomatis dari sumber eksternal.
+1. A donor registers and completes their profile (blood type, domicile, weight).
+2. A patient/family creates an urgent blood request and shares a request card (QR + compatibility matrix).
+3. Compatible, available donors contact the coordinator or mark the request as fulfilled.
+4. Donations are recorded in the donor's history; verification and awards strengthen donor credibility.
+5. Blood requests and donation event data are synchronized automatically from external sources.
 
 ## Features
 
-- **Donor Search** — Cari donor berdasarkan golongan darah, lokasi, dan ketersediaan, dengan filter wilayah dan geolokasi
-- **Blood Requests** — Buat, bagikan, dan penuhi permintaan darah darurat; kartu share dengan QR + matriks kompatibilitas; tombol hubungi koordinator via WhatsApp
-- **Blood Request Discovery** — Sinkronisasi permintaan darah dari sumber eksternal (Kawan Sedarah)
-- **Event Discovery** — Temukan event donor darah dari PMI dan REST API eksternal; arsip event
-- **Profile Discovery** — Sinkronisasi profil donor dari sumber eksternal
-- **Donor History** — Catatan riwayat donasi + upload bukti
-- **Donation Claims** — Klaim donasi lama yang belum tercatat, dengan review admin
-- **Verification Levels** — Tingkat verifikasi donor (Self → Community → Verified), dengan pengajuan + review admin
-- **Trust Score** — Skor kepercayaan donor yang dihitung dari aktivitas
-- **Leaderboard** — Peringkat donor nasional dan regional
-- **Timeline** — Feed aktivitas terpadu (riwayat, verifikasi, klaim, request, event)
-- **Donor Passport** — Paspor digital dengan QR code; halaman verifikasi publik
-- **Recognition & Awards** — Portofolio donor, konfigurasi penghargaan dan gelar (admin)
-- **Admin Dashboard** — Statistik, manajemen pengguna, review klaim/verifikasi, kelola permintaan & report, analytics (institusi, kota, tahun, bulan, usia, top donor), konfigurasi penghargaan, trigger scrape manual, maintenance mode
-- **Maintenance Mode** — Gate berbasis edge middleware dengan allowlist untuk halaman admin/auth
-- **Partner Branding** — Halaman "Partner Kami" (Kawan Sedarah)
+- **Donor Search** — Search for donors by blood type, location, and availability, with region filters and geolocation
+- **Blood Requests** — Create, share, and fulfill urgent blood requests; share card with QR + compatibility matrix; WhatsApp "Contact" button for the coordinator
+- **Blood Request Discovery** — Synchronization of blood requests from an external source (Kawan Sedarah)
+- **Event Discovery** — Donation events from PMI websites and REST APIs; event archive
+- **Profile Discovery** — Donor profile synchronization from an external source
+- **Donor History** — Donation log with proof upload
+- **Donation Claims** — Claim old unrecorded donations, with admin review
+- **Verification Levels** — Donor verification tiers (Self → Community → Verified), with submission and admin review
+- **Trust Score** — Donor trust score computed from activity
+- **Leaderboard** — National and regional donor rankings
+- **Timeline** — Unified activity feed (history, verification, claims, requests, events)
+- **Donor Passport** — Digital passport with QR code; public verification page
+- **Recognition & Awards** — Donor portfolio and award/title configuration (admin); `/recognition/*` redirects to `/passport`
+- **Admin Dashboard** — Statistics, user management, claim/verification review, request & report management, analytics (institutions, cities, years, months, age, top donors), award configuration, manual scrape trigger, maintenance mode
+- **Maintenance Mode** — Edge-middleware gate with allowlist for admin/auth pages
+- **Partner Branding** — "Partner Kami" (Kawan Sedarah) page
+
+The application UI is in Indonesian (`id-ID`); the codebase is in English.
 
 ## Tech Stack
 
-| Layer | Teknologi |
+| Layer | Technology |
 |---|---|
 | Frontend | Next.js 16.2.6 (App Router), React 19.2.4, TypeScript 5 |
 | Styling | TailwindCSS 4, Base UI (`@base-ui/react`), glassmorphism ("Vitality Flow") |
 | Database | PostgreSQL 16 (Supabase) via `@supabase/supabase-js` (REST) |
-| Analytics | SQL agregasi via `pg` (raw Postgres pool, server-side) |
-| Auth | Custom JWT (jsonwebtoken + bcryptjs), akses 15m + refresh rotation 7d |
-| Storage | Vercel Blob (private, diproksi melalui `/api/v1/files`) |
+| Analytics | SQL aggregation via `pg` (raw Postgres pool, server-side) |
+| Auth | Custom JWT (jsonwebtoken + bcryptjs), 15m access + 7d refresh rotation |
+| Storage | Vercel Blob (private, proxied through `/api/v1/files`) |
 | Upload | Multipart → `/api/v1/upload` → Vercel Blob `put()` |
-| Email | Nodemailer via SMTP (opsional; kosong = skip email) |
-| QR | `api.qrserver.com` (eksternal) |
+| Email | Nodemailer via SMTP (optional; empty = email skipped) |
+| QR | `api.qrserver.com` (external) |
 | Scrapers | Axios + Cheerio (event / blood-request / profile discovery) |
 | Container | Docker + Docker Compose (postgres + redis + frontend) |
-| Scheduler | Supabase `pg_cron` + `pg_net` (discovery otomatis) + Vercel Cron (failsafe harian) |
+| Scheduler | Supabase `pg_cron` + `pg_net` (automatic discovery) + Vercel Cron (daily failsafe) |
 | CI | GitHub Actions (`npm ci` + `npm run build`) |
 
-> **Catatan:** service Redis tersedia di Docker Compose tetapi belum digunakan oleh kode.
+> **Note:** Redis is available in Docker Compose but is not used by the application code.
 
 ## Requirements
 
-- Node.js ≥ 22 (disarankan via `nvm`, lihat `.nvmrc`)
-- npm (bundled dengan Node)
-- Akun Supabase (project + URL + anon key + service key)
-- Vercel Blob token (untuk fitur upload bukti/foto)
-- Docker + Docker Compose (opsional, untuk postgres lokal & containerisasi)
-- SMTP server (opsional, untuk verifikasi email & reset password)
+- Node.js ≥ 22 (recommended via `nvm`; see `.nvmrc`)
+- npm (bundled with Node)
+- Supabase account (project URL + anon key + service key)
+- Vercel Blob token (for proof/photo upload)
+- Docker + Docker Compose (optional, for local Postgres and containerization)
+- SMTP server (optional, for email verification and password reset)
 
 ## Getting Started
 
 ### Installation
 
 ```bash
-nvm use 22          # atau: source "$HOME/.nvm/nvm.sh" && nvm use
+nvm use 22          # or: source "$HOME/.nvm/nvm.sh" && nvm use
 npm ci
 ```
 
@@ -77,7 +79,7 @@ npm ci
 cp .env.example .env
 ```
 
-Isi nilai pada `.env` sesuai tabel Environment Variables di bawah. Untuk pengembangan lokal dengan Docker:
+Fill in the values in `.env` according to the Environment Variables table below. For local development with Docker:
 
 ```bash
 docker compose up -d postgres redis
@@ -85,50 +87,50 @@ docker compose up -d postgres redis
 
 ### Environment Variables
 
-| Variable | Diperlukan | Deskripsi |
+| Variable | Required | Description |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Ya | URL project Supabase |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Ya | Anon/public key (aman untuk client) |
-| `SUPABASE_SERVICE_KEY` | Ya | Service role key — **server only** |
-| `JWT_SECRET` | Ya | Kunci HMAC JWT — **server only**; ganti untuk production |
-| `DATABASE_URL` | Migrasi & analytics | Connection string PostgreSQL langsung (migrasi + agregasi analytics admin) |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_SSLMODE` | Docker lokal | Kredensial postgres lokal (`DB_HOST=postgres` di Compose, `localhost` di luar Docker) |
-| `BLOB_READ_WRITE_TOKEN` | Upload | Token Vercel Blob — **server only** |
-| `SMTP_HOST` | Email | Host SMTP; kosong = email nonaktif |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Anon/public key (safe for the client) |
+| `SUPABASE_SERVICE_KEY` | Yes | Service role key — **server only** |
+| `JWT_SECRET` | Yes | HMAC JWT secret — **server only**; change for production |
+| `DATABASE_URL` | Migrations & analytics | Direct PostgreSQL connection string (migrations + admin analytics aggregation) |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_SSLMODE` | Local Docker | Local Postgres credentials (`DB_HOST=postgres` in Compose, `localhost` outside Docker) |
+| `BLOB_READ_WRITE_TOKEN` | Uploads | Vercel Blob token — **server only** |
+| `SMTP_HOST` | Email | SMTP host; empty = email disabled |
 | `SMTP_PORT` | No | Default `587` |
-| `SMTP_USER` / `SMTP_PASSWORD` | Email | Kredensial SMTP |
+| `SMTP_USER` / `SMTP_PASSWORD` | Email | SMTP credentials |
 | `SMTP_FROM` | No | Default `noreply@ambildarahku.id` |
-| `SEED_ADMIN_EMAIL` | Seed admin | Super admin dibuat otomatis saat migrasi; default password `admin123` (ubah via `SEED_ADMIN_PASSWORD`) |
-| `SEED_ADMIN_PASSWORD` | No | Password super admin |
-| `SEED_ADMIN_PHONE` | No | Phone super admin |
-| `NEXT_PUBLIC_COORDINATOR_PHONE` | Kontak | Nomor koordinator (E.164) untuk semua tombol "Hubungi"; kosong = tombol disembunyikan |
-| `APP_URL` | No | URL basis untuk link verifikasi email (default `http://localhost:3000`) |
-| `NEXT_PUBLIC_APP_URL` | No | URL publik frontend |
-| `NEXT_PUBLIC_API_URL` | No | Base path API (default `/api/v1`) |
-| `DOMAIN` | SEO | Domain untuk sitemap |
-| `FRONTEND_PORT` | No | Port frontend (default `3000`) |
-| `CRON_SECRET` | Scheduler | Bearer token untuk trigger discovery terjadwal — **wajib juga di-set di runtime env Vercel** |
-| `SCRAPE_TARGET_URL` | Scheduler | Endpoint deploy, mis. `https://…/api/v1/discover` |
-| `SCRAPE_INTERVAL_MINUTES` | No | Interval pg_cron (default `60`); terapkan ulang dengan `npm run migrate` |
-| `VERCEL_CRON_EXPR` | No | Ekspresi cron Vercel yang dipercaya route `/api/v1/discover` (default `0 * * * *`) |
-| `KS_ANON_KEY` | Discovery | Anon key Supabase Kawan Sedarah (sumber data eksternal) |
+| `SEED_ADMIN_EMAIL` | Admin seed | Super admin auto-created at migration; default password `admin123` (override with `SEED_ADMIN_PASSWORD`) |
+| `SEED_ADMIN_PASSWORD` | No | Super admin password |
+| `SEED_ADMIN_PHONE` | No | Super admin phone |
+| `NEXT_PUBLIC_COORDINATOR_PHONE` | Contact | Coordinator number (E.164) for all "Hubungi" buttons; empty = buttons hidden |
+| `APP_URL` | No | Base URL for email verification links (default `http://localhost:3000`) |
+| `NEXT_PUBLIC_APP_URL` | No | Public frontend URL |
+| `NEXT_PUBLIC_API_URL` | No | API base path (default `/api/v1`) |
+| `DOMAIN` | SEO | Domain for sitemap |
+| `FRONTEND_PORT` | No | Frontend port (default `3000`) |
+| `CRON_SECRET` | Scheduler | Bearer token for scheduled discovery triggers — **must also be set in the Vercel runtime env** |
+| `SCRAPE_TARGET_URL` | Scheduler | Deployed endpoint, e.g. `https://…/api/v1/discover` |
+| `SCRAPE_INTERVAL_MINUTES` | No | pg_cron interval (default `60`); reapply with `npm run migrate` |
+| `VERCEL_CRON_EXPR` | No | Vercel cron expression trusted by `/api/v1/discover` (default `0 18 * * *`) |
+| `KS_ANON_KEY` | Discovery | Kawan Sedarah Supabase anon key (external data source) |
 
-> **Security:** `SUPABASE_SERVICE_KEY`, `BLOB_READ_WRITE_TOKEN`, dan `JWT_SECRET` hanya boleh digunakan di server (API routes). Jangan pernah mengeksposnya ke browser. Hanya variabel ber-prefix `NEXT_PUBLIC_` yang aman untuk client.
+> **Security:** `SUPABASE_SERVICE_KEY`, `BLOB_READ_WRITE_TOKEN`, and `JWT_SECRET` must be used only on the server (API routes). Never expose them to the browser. Only variables with the `NEXT_PUBLIC_` prefix are safe for the client.
 
 ### Running Locally
 
 ```bash
-# Siapkan schema (20 tabel + index + admin seed + scheduler job)
+# Prepare the schema (20 tables + indexes + admin seed + scheduler job)
 npm run migrate
 
-# Opsional: data developer
+# Optional: developer data
 npm run seed
 
-# Jalankan dev server
+# Start the dev server
 npm run dev
 ```
 
-Buka `http://localhost:3000`. Akun seed donor memakai password `donor123`; super admin dibuat otomatis bila `SEED_ADMIN_EMAIL` di-set (password default `admin123`).
+Open `http://localhost:3000`. Seed donor accounts use the password `donor123`; a super admin is created automatically when `SEED_ADMIN_EMAIL` is set (default password `admin123`).
 
 ## Project Structure
 
@@ -137,48 +139,48 @@ ambildarahku/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx               # Landing page (live stats, partner)
-│   │   ├── login/ register/       # Auth (register 3 langkah: profil → darah → domisili)
+│   │   ├── login/ register/       # Auth (3-step registration: profile → blood → domicile)
 │   │   ├── forgot-password/ reset-password/ verify-email/
-│   │   ├── profile/               # Dashboard donor (stats, verifikasi, trust, timeline)
-│   │   ├── search/                # Pencarian donor
+│   │   ├── profile/               # Donor dashboard (stats, verification, trust, timeline)
+│   │   ├── search/                # Donor search
 │   │   ├── requests/ requests/new/ requests/share/[id]/
-│   │   ├── donor-history/         # Riwayat donasi + bukti upload
-│   │   ├── claims/ claims/new/    # Klaim donasi
-│   │   ├── verification/          # Level verifikasi + pengajuan
+│   │   ├── donor-history/         # Donation log + proof upload
+│   │   ├── claims/ claims/new/    # Donation claims
+│   │   ├── verification/          # Verification levels + submission
 │   │   ├── leaderboard/ timeline/
 │   │   ├── events/ events/new/ events/archive/
-│   │   ├── passport/ passport/verify/[token]/   # + verifikasi QR publik (SSR)
-│   │   ├── u/[username]/          # Portofolio publik (SSR)
+│   │   ├── passport/ passport/verify/[token]/   # + public QR verification (SSR)
+│   │   ├── u/[username]/          # Public portfolio (SSR)
 │   │   ├── admin/ admin/analytics/ admin/awards/ admin/blood-requests/
 │   │   │   └── admin/claims/ admin/reports/ admin/verifications/
 │   │   ├── privacy/ terms/ maintenance/
-│   │   ├── robots.txt sitemap.xml
-│   │   └── api/v1/                # 73 route files (22 kelompok: auth, donors, requests,
-│   │                              #   blood-requests, events, discover, admin, files, dll.)
-│   ├── components/                # 14 komponen custom (GlassCard, Sidebar, dll.) + 9 UI primitives
+│   │   ├── robots.txt/ sitemap.xml/
+│   │   └── api/v1/                # 73 route files (22 groups: auth, donors, requests,
+│   │                              #   blood-requests, events, discover, admin, files, etc.)
+│   ├── components/                # 14 custom components (GlassCard, Sidebar, etc.) + 9 UI primitives
 │   ├── lib/                       # db.ts (Supabase lazy-init Proxy), pg.ts, auth-middleware.ts,
 │   │                              #   jwt.ts, password.ts, email.ts, file.ts (Blob), eligibility.ts,
 │   │                              #   trust-score.ts, blood-compatibility.ts, config.ts, api.ts,
 │   │                              #   auth-context.tsx, data/wilayah.ts, hooks/,
 │   │                              #   event-discovery/, blood-request-discovery/, profile-discovery/
-│   ├── middleware.ts              # Edge middleware — maintenance gate + auth
+│   ├── middleware.ts              # Edge middleware — maintenance gate
 │   └── utils/
 ├── scripts/
-│   ├── migrate.ts                 # DDL idempotent (20 tabel + index + admin seed + scheduler job)
-│   ├── reset-db.ts                # Drop semua → migrate ulang
-│   ├── seed-dev.ts                # Data donor development
-│   ├── seed-production-like.ts    # Data sintetis skala besar (SEED_SCALE)
-│   ├── seed-wilayah.ts            # Reseed tabel wilayah_regions
-│   ├── seed-profiles.ts           # Seed profil donor dari Kawan Sedarah
-│   ├── split-wilayah.ts           # Regenerasi data wilayah + map kode lama→baru
-│   ├── migrate-wilayah-codes.ts   # Remap kode wilayah lama pengguna
-│   ├── discover-events.ts         # Trigger discovery event manual
+│   ├── migrate.ts                 # Idempotent DDL (20 tables + indexes + admin seed + scheduler job)
+│   ├── reset-db.ts                # Drop all → re-migrate
+│   ├── seed-dev.ts                # Developer donor data
+│   ├── seed-production-like.ts    # Large-scale synthetic data (SEED_SCALE)
+│   ├── seed-wilayah.ts            # Reseed wilayah_regions table
+│   ├── seed-profiles.ts           # Seed donor profiles from Kawan Sedarah
+│   ├── split-wilayah.ts           # Regenerate region data + legacy code mapping
+│   ├── migrate-wilayah-codes.ts   # Remap legacy user region codes
+│   ├── discover-events.ts         # Manual event discovery trigger
 │   └── test-privacy.ts test-scrape-lock.ts   # Smoke checks
 ├── public/
 ├── docker-compose.yml             # postgres + redis + frontend
 ├── Dockerfile                     # Multi-stage, node:22-alpine, standalone
 ├── next.config.ts                 # output: standalone; redirect /recognition → /passport
-├── vercel.json                    # Cron harian untuk /api/v1/discover
+├── vercel.json                    # Daily cron for /api/v1/discover
 ├── .github/workflows/ci.yml       # CI: npm ci + npm run build
 ├── .env.example
 ├── PRD.md  DESIGN.md
@@ -187,68 +189,68 @@ ambildarahku/
 
 ## Usage
 
-### Pengguna Umum (tanpa login)
+### Public Users (no login)
 
-- Mencari donor berdasarkan golongan darah dan lokasi
-- Melihat daftar permintaan darah terbuka dan kartu share
-- Melihat event donor darah
-- Memverifikasi QR passport donor (`/passport/verify/[token]`)
-- Melihat portofolio publik donor (`/u/[username]`), halaman privasi & syarat
+- Search for donors by blood type and location
+- View open blood requests and share cards
+- View blood donation events
+- Verify a donor passport QR (`/passport/verify/[token]`)
+- View public donor portfolios (`/u/[username]`), privacy policy, and terms
 
-### Donor (login)
+### Donors (logged in)
 
-- Registrasi 3 langkah + verifikasi email
-- Mengelola status ketersediaan dan eligibilitas
-- Mencatat riwayat donasi + upload bukti
-- Mengajukan klaim donasi lama & meningkatkan level verifikasi
-- Membuat/memenuhi permintaan darah, melihat timeline, leaderboard, passport digital, dan portofolio penghargaan
+- 3-step registration with email verification
+- Manage availability status and eligibility
+- Record donation history and upload proof
+- Submit donation claims and request higher verification levels
+- Create/fulfill blood requests, view timeline, leaderboard, digital passport, and awards portfolio
 
-### Administrator (login `super_admin`)
+### Administrators (`super_admin`)
 
-- Dashboard statistik & analytics (institusi, kota, tahun, bulan, usia, top donor)
-- Manajemen pengguna & role
-- Review klaim donasi & pengajuan verifikasi
-- Kelola permintaan darah & report
-- Konfigurasi penghargaan/gelar
-- Trigger scrape manual + melihat riwayat/job scheduler
-- Toggle maintenance mode
+- Statistics dashboard & analytics (institutions, cities, years, months, age, top donors)
+- User & role management
+- Donation claim & verification review
+- Blood request & report management
+- Award/title configuration
+- Manual scrape trigger and scheduler job history
+- Maintenance mode toggle
 
 ## API / Integrations
 
 - **Base path:** `/api/v1` (Next.js Route Handlers `route.ts`)
-- **Auth:** Bearer JWT access token (15 menit) + refresh token rotation (7 hari); client `src/lib/api.ts` melakukan auto-refresh
-- **Role gates:** `authRequired`, `adminRequired`, `emailVerifiedRequired` di `src/lib/auth-middleware.ts`
+- **Auth:** Bearer JWT access token (15 minutes) + refresh token rotation (7 days); `src/lib/api.ts` performs auto-refresh
+- **Role gates:** `authRequired`, `adminRequired`, `emailVerifiedRequired` in `src/lib/auth-middleware.ts`
 
-Kelompok endpoint utama: `auth` (register, login, refresh, logout, verify/resend email, forgot/reset/change password), `donors` (profil, status, pencarian), `requests` & `blood-requests` (permintaan, fulfill), `donor-history`, `claims`, `donor-verification`, `trust-score`, `leaderboard`, `timeline`, `passport`, `recognition`, `events`, `stats`, `reports`, `admin/*` (statistik, analytics, users, claims, verifications, awards, maintenance, scrape), `files` (proksi blob private), `upload`, `discover` (scheduler), `health`.
+Main endpoint groups: `auth` (register, login, refresh, logout, verify/resend email, forgot/reset/change password), `donors` (profile, status, search), `requests` & `blood-requests` (requests, fulfill), `donor-history`, `claims`, `donor-verification`, `trust-score`, `leaderboard`, `timeline`, `passport`, `recognition`, `events`, `stats`, `reports`, `admin/*` (statistics, analytics, users, claims, verifications, awards, maintenance, scrape), `files` (private blob proxy), `upload`, `discover` (scheduler), `health`.
 
-### Integrasi Eksternal
+### External Integrations
 
-- **Supabase** — penyimpanan data utama via `@supabase/supabase-js` (REST); pool `pg` hanya untuk migrasi & agregasi analytics
-- **Vercel Blob** — penyimpanan file private; diakses via proksi `/api/v1/files` (terima URL penuh maupun path-only)
-- **SMTP (Nodemailer)** — verifikasi email & reset password
-- **Kawan Sedarah** — sumber data sinkronisasi (permintaan darah + profil donor)
-- **PMI websites + REST API** — sumber data event donor darah
-- **QR Code** — `api.qrserver.com` (eksternal)
+- **Supabase** — primary data store via `@supabase/supabase-js` (REST); `pg` pool used only for migrations & analytics aggregation
+- **Vercel Blob** — private file storage; accessed via the `/api/v1/files` proxy (accepts full URLs or path-only)
+- **SMTP (Nodemailer)** — email verification & password reset
+- **Kawan Sedarah** — data source for synchronization (blood requests + donor profiles)
+- **PMI websites + REST API** — blood donation event data source
+- **QR Code** — `api.qrserver.com` (external)
 
-## Automatisasi Sinkronisasi (Discovery/Scraping)
+## Automated Synchronization (Discovery/Scraping)
 
-- **Data yang disinkronkan:** event donor darah (dari website/REST PMI), permintaan darah (Kawan Sedarah), profil donor (Kawan Sedarah)
-- **Cara kerja:** runner di `src/lib/event-discovery/`, `src/lib/blood-request-discovery/`, `src/lib/profile-discovery/`; rutin utama di `src/lib/discovery/`
-- **Scheduler:** Supabase `pg_cron` + `pg_net` melakukan `POST` ke `/api/v1/discover` dengan `SCRAPE_TARGET_URL` pada interval `SCRAPE_INTERVAL_MINUTES` (job dijadwalkan saat `npm run migrate`). Membutuhkan `CRON_SECRET` — **wajib di-set juga di runtime env deployment**, jika tidak post dari pg_net ditolak diam-diam
-- **Failsafe:** Vercel Cron (`vercel.json`) memicu sekali sehari (`0 18 * * *` / 01:00 WIB)
-- **Manual:** via halaman admin scrape ("Scrape Now"); `npm run discover` untuk event
-- **Keamanan trigger:** route `/api/v1/discover` hanya mempercayai `x-scheduled` + `CRON_SECRET` atau `x-vercel-cron`
-- **Monitoring:** lock & riwayat eksekusi tercatat di tabel `scrape_jobs` / `scrape_runs`; halaman admin menampilkan run history + diagnostik `pg_cron_runs`
-- **Fallback:** Postgres lokal tanpa `pg_cron`/`pg_net` hanya mendukung trigger manual (peringatan saat migrasi)
+- **Synchronized data:** donation events (PMI websites/REST), blood requests (Kawan Sedarah), donor profiles (Kawan Sedarah)
+- **How it works:** runners in `src/lib/event-discovery/`, `src/lib/blood-request-discovery/`, and `src/lib/profile-discovery/`; orchestration in `src/lib/discovery/`
+- **Scheduler:** Supabase `pg_cron` + `pg_net` `POST` to `/api/v1/discover` using `SCRAPE_TARGET_URL` at `SCRAPE_INTERVAL_MINUTES` (job scheduled during `npm run migrate`). Requires `CRON_SECRET` — **also required in the deployment runtime env**, otherwise pg_net posts are silently rejected
+- **Failsafe:** Vercel Cron (`vercel.json`) fires once daily (`0 18 * * *` / 01:00 WIB)
+- **Manual:** via the admin scrape page ("Scrape Now"); `npm run discover` for events
+- **Trigger security:** `/api/v1/discover` trusts only `x-scheduled` + `CRON_SECRET` or `x-vercel-cron`
+- **Monitoring:** lock & execution history recorded in `scrape_jobs` / `scrape_runs`; the admin page shows run history and `pg_cron_runs` diagnostics
+- **Fallback:** local Postgres without `pg_cron`/`pg_net` supports manual triggers only (warning printed at migration)
 
 ## Database
 
-- **DBMS:** PostgreSQL 16 (Supabase Cloud untuk deploy; Docker `postgres:16-alpine` untuk lokal)
-- **Akses di aplikasi:** semua API route memakai Supabase JS client (`supabase.from().select()`); endpoint analytics admin memakai SQL agregasi langsung via `pg` (membutuhkan `DATABASE_URL` saat runtime)
-- **Migrasi:** DDL idempotent di `scripts/migrate.ts` — 20 tabel (`users`, `donor_histories`, `blood_requests`, `request_fulfillments`, `donation_claims`, `donor_verifications`, `badges`, `user_badges`, `award_configs`, `user_titles`, `donor_passports`, `refresh_tokens`, `verification_tokens`, `events`, `event_sources`, `wilayah_regions`, `config`, `scrape_jobs`, `scrape_runs`, `reports`) + index + seed admin + job scheduler
-- **Setup:** `npm run migrate` (lokal butuh Postgres jalan, lihat `docker compose up -d postgres`)
-- **Seed:** `npm run seed` (dev), `npm run seed:prod-like`, `npm run seed-wilayah`, `npm run seed-profiles`
-- **Data wilayah:** tabel `wilayah_regions` + file JSON lazy-load per level (provinsi/kabupaten/kecamatan); kode wilayah disimpan sebagai ID numerik, diremapping via `npm run migrate:wilayah`
+- **DBMS:** PostgreSQL 16 (Supabase Cloud for deployment; Docker `postgres:16-alpine` locally)
+- **Access in the app:** all API routes use the Supabase JS client (`supabase.from().select()`); admin analytics endpoints use raw SQL aggregation via `pg` (requires `DATABASE_URL` at runtime)
+- **Migrations:** idempotent DDL in `scripts/migrate.ts` — 20 tables (`users`, `donor_histories`, `blood_requests`, `request_fulfillments`, `donation_claims`, `donor_verifications`, `badges`, `user_badges`, `award_configs`, `user_titles`, `donor_passports`, `refresh_tokens`, `verification_tokens`, `events`, `event_sources`, `wilayah_regions`, `config`, `scrape_jobs`, `scrape_runs`, `reports`) + indexes + admin seed + scheduler job
+- **Setup:** `npm run migrate` (local requires running Postgres; see `docker compose up -d postgres`)
+- **Seeds:** `npm run seed` (dev), `npm run seed:prod-like`, `npm run seed-wilayah`, `npm run seed-profiles`
+- **Region data:** `wilayah_regions` table + lazy-loaded JSON files per level (province/regency/district); region codes stored as numeric IDs, remapped via `npm run migrate:wilayah`
 
 ## Development
 
@@ -259,35 +261,35 @@ npm run dev
 # Lint
 npm run lint
 
-# Build production
+# Production build
 npm run build
 
-# Jalankan production build
+# Run production build
 npm start
 ```
 
-| Script | Fungsi |
+| Script | Purpose |
 |---|---|
-| `npm run migrate` | Migrasi schema + admin seed + jadwalkan scheduler |
-| `npm run reset` | Drop semua data → migrasi ulang (destruktif) |
-| `npm run seed` | Seed data development |
-| `npm run seed:prod-like` | Seed data sintetis skala produksi |
-| `npm run seed-wilayah` | Reseed tabel wilayah |
-| `npm run seed-profiles` | Seed profil donor dari Kawan Sedarah |
-| `npm run split-wilayah` | Regenerasi data wilayah + map kode lama→baru |
-| `npm run migrate:wilayah` | Remap kode wilayah lama pengguna |
-| `npm run discover` | Trigger discovery event manual |
-| `npm run test:privacy` | Smoke check privasi (data publik) |
-| `npm run test:scrape-lock` | Smoke check lock scheduler |
+| `npm run migrate` | Schema migration + admin seed + scheduler job |
+| `npm run reset` | Drop all data → re-migrate (destructive) |
+| `npm run seed` | Seed developer data |
+| `npm run seed:prod-like` | Seed large-scale synthetic data |
+| `npm run seed-wilayah` | Reseed region table |
+| `npm run seed-profiles` | Seed donor profiles from Kawan Sedarah |
+| `npm run split-wilayah` | Regenerate region data + legacy code mapping |
+| `npm run migrate:wilayah` | Remap legacy user region codes |
+| `npm run discover` | Manual event discovery trigger |
+| `npm run test:privacy` | Privacy smoke check (public data) |
+| `npm run test:scrape-lock` | Scheduler lock smoke check |
 
 ## Deployment
 
 ### Vercel (Hobby plan)
 
-1. Build: `npm run build` (CI GitHub Actions menjalankan `npm ci` + `npm run build` setiap push/PR ke `main`)
-2. Set semua environment variables di dashboard Vercel (lihat tabel di atas), termasuk `SUPABASE_*`, `JWT_SECRET`, `BLOB_READ_WRITE_TOKEN`, dan **`CRON_SECRET` di runtime env** untuk scheduler
-3. Scheduler discovery: set `SCRAPE_TARGET_URL` ke URL deploy (`https://…/api/v1/discover`); Vercel Cron (`vercel.json`) memicu failsafe harian
-4. Verifikasi: halaman `/api/v1/health`, login admin, halaman admin scrape untuk status job
+1. Build: `npm run build` (GitHub Actions CI runs `npm ci` + `npm run build` on every push/PR to `main`)
+2. Set all environment variables in the Vercel dashboard (see table above), including `SUPABASE_*`, `JWT_SECRET`, `BLOB_READ_WRITE_TOKEN`, and **`CRON_SECRET` in the runtime env** for the scheduler
+3. Discovery scheduler: set `SCRAPE_TARGET_URL` to the deployed URL (`https://…/api/v1/discover`); Vercel Cron (`vercel.json`) provides the daily failsafe
+4. Verify: `/api/v1/health`, admin login, admin scrape page for job status
 
 ### Docker Compose
 
@@ -295,59 +297,58 @@ npm start
 docker compose up --build
 ```
 
-Service: `postgres` (16-alpine, volume persist), `redis` (7-alpine), `frontend` (Dockerfile multi-stage, `node:22-alpine`, output standalone). Env dibaca dari `.env` / `.env.local`; lihat `docker-compose.yml`.
+Services: `postgres` (16-alpine, persisted volume), `redis` (7-alpine), `frontend` (multi-stage Dockerfile, `node:22-alpine`, standalone output). Env is read from `.env` / `.env.local`; see `docker-compose.yml`.
 
-> Lokal tanpa Supabase: migrasi memakai `DB_*` vars, namun runtime tetap membutuhkan Supabase URL/keys untuk API routes.
+> Without Supabase locally: migrations use `DB_*` vars, but the runtime still needs Supabase URL/keys for API routes.
 
 ## Responsive Design
 
-Aplikasi mendukung tampilan mobile, tablet, dan desktop — navigasi memakai sidebar desktop dan bottom-nav/drawer di mobile.
+The application supports mobile, tablet, and desktop layouts — desktop sidebar navigation and mobile bottom-nav/drawer.
 
 ## Security & Privacy
 
-- **JWT:** access token 15 menit + refresh token rotation 7 hari; refresh token di-invalidate setiap digunakan; password di-hash dengan bcrypt
-- **Secrets:** `SUPABASE_SERVICE_KEY`, `BLOB_READ_WRITE_TOKEN`, `JWT_SECRET` murni server-side (tidak di-`NEXT_PUBLIC_`)
-- **File:** blob bersifat private, hanya diakses via proksi ber-auth `/api/v1/files`
-- **Public pages (SSR)** hanya menampilkan field publik; endpoint terproteksi memerlukan role `super_admin` / auth
-- **Discovery endpoint** tidak dapat dipicu publik — hanya `CRON_SECRET` / `x-vercel-cron`
-- **Gap yang diketahui:** CORS mengizinkan semua origin (`*`), nomor telepon terekspos di API pencarian donor, tidak ada rate limiting (kecuali forgot-password 1x/menit), tidak ada audit logging, tidak ada test otomatis
-- **Aturan donasi:** volume 0.35 L/bag untuk ≤55 kg dan 0.45 L/bag untuk >55 kg; interval minimal 56 hari; range usia 18–65
+- **JWT:** 15-minute access token + 7-day rotating refresh token; refresh tokens are invalidated on every use; passwords hashed with bcrypt
+- **Secrets:** `SUPABASE_SERVICE_KEY`, `BLOB_READ_WRITE_TOKEN`, and `JWT_SECRET` are strictly server-side (not `NEXT_PUBLIC_`)
+- **Files:** blobs are private, accessed only through the authenticated `/api/v1/files` proxy
+- **Public pages (SSR)** expose only public fields; protected endpoints require `super_admin` / auth roles
+- **Discovery endpoint** cannot be triggered publicly — only `CRON_SECRET` / `x-vercel-cron`
+- **Known gaps:** CORS allows all origins (`*`), phone numbers are exposed in the donor search API, no rate limiting (except forgot-password 1 req/min), no audit logging, no automated tests
+- **Donation rules:** 0.35 L/bag for ≤55 kg and 0.45 L/bag for >55 kg; minimum 56-day interval; age range 18–65
 
 ## Troubleshooting
 
-### Login/registrasi gagal (500)
-Periksa `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, dan `SUPABASE_SERVICE_KEY` di `.env`.
+### Login/registration fails (500)
+Check `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SERVICE_KEY` in `.env`.
 
-### `npm run migrate` gagal
-- Pastikan Postgres berjalan: `docker compose up -d postgres`
-- Pastikan `DATABASE_URL` (Supabase) atau `DB_*` vars (lokal) benar; ekstensi `uuid-ossp` tersedia
-- Reset: `npm run reset` (destruktif)
+### `npm run migrate` fails
+- Ensure Postgres is running: `docker compose up -d postgres`
+- Ensure `DATABASE_URL` (Supabase) or `DB_*` vars (local) are correct; the `uuid-ossp` extension must be available
+- Reset: `npm run reset` (destructive)
 
-### Upload bukti gagal / error blob
-Set `BLOB_READ_WRITE_TOKEN` di Vercel Blob store.
+### Proof upload fails / blob error
+Set `BLOB_READ_WRITE_TOKEN` in the Vercel Blob store.
 
-### Scheduler discovery tidak jalan
-1. Set `SCRAPE_TARGET_URL` + `CRON_SECRET`, jalankan ulang `npm run migrate` untuk menjadwalkan ulang job
-2. Pastikan `CRON_SECRET` juga terpasang di runtime env deployment (Vercel) — jika tidak, post pg_net ditolak diam-diam
-3. Cek run history & `pg_cron_runs` di halaman admin scrape
+### Discovery scheduler not running
+1. Set `SCRAPE_TARGET_URL` + `CRON_SECRET`, then re-run `npm run migrate` to reschedule the job
+2. Ensure `CRON_SECRET` is also set in the deployment runtime env (Vercel) — otherwise pg_net posts are silently rejected
+3. Check run history and `pg_cron_runs` in the admin scrape page
 
 ### "invalid or expired token"
-Access token berumur 15 menit; client seharusnya auto-refresh. Periksa sinkronisasi jam sistem (JWT memakai timestamp).
+Access tokens last 15 minutes; the client should auto-refresh. Check system clock synchronization (JWT uses timestamps).
 
 ### "email/phone already registered"
-Constraint unik di tabel `users` (`email`, `phone`). Gunakan email/phone berbeda atau hapus data lama.
+Unique constraints on the `users` table (`email`, `phone`). Use a different email/phone or remove old data.
 
-### Data wilayah lama tidak cocok
-Kode wilayah lama (numerik legacy) dapat di-remap dengan `npm run migrate:wilayah` setelah `npm run split-wilayah`.
+### Legacy region data mismatch
+Legacy (numeric) region codes can be remapped with `npm run migrate:wilayah` after `npm run split-wilayah`.
 
 ## Contributing
 
-1. Fork repository dan buat branch fitur (`feat/…`, `fix/…`)
-2. Jalankan verifikasi sebelum PR: `npm run lint`, `npm run build`, dan smoke checks (`npm run test:privacy`, `npm run test:scrape-lock`)
-3. Buka pull request ke `main` (CI otomatis menjalankan build)
-5. Untuk perubahan skema DB: perbarui `scripts/migrate.ts` (DDL idempotent)
+1. Fork the repository and create a feature branch (`feat/…`, `fix/…`)
+2. Run verification before opening a PR: `npm run lint`, `npm run build`, and smoke checks (`npm run test:privacy`, `npm run test:scrape-lock`)
+3. Open a pull request to `main` (CI runs the build automatically)
+4. For schema changes: update `scripts/migrate.ts` (idempotent DDL)
 
 ## License
 
-MIT — lihat [LICENSE](LICENSE).
-
+MIT — see [LICENSE](LICENSE).
