@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
-import { Droplets, MapPin, Clock, CheckCircle, Plus } from "lucide-react";
+import { Droplets, MapPin, Clock, CheckCircle, Plus, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type BloodRequest = {
@@ -33,13 +34,25 @@ export default function AdminBloodRequestsPage() {
   const router = useRouter();
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [fulfilling, setFulfilling] = useState<string | null>(null);
+  const [confirmReq, setConfirmReq] = useState<BloodRequest | null>(null);
 
   const fetchRequests = () => {
     api.get<{ requests: BloodRequest[] }>("/admin/blood-requests")
-      .then(d => setRequests(d.requests || []))
-      .catch(() => {})
+      .then(d => { setRequests(d.requests || []); setError(null); })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Gagal memuat permintaan darah";
+        setError(msg);
+        toast.error(msg);
+      })
       .finally(() => setLoading(false));
+  };
+
+  const retry = () => {
+    setLoading(true);
+    setError(null);
+    fetchRequests();
   };
 
   useEffect(() => {
@@ -58,20 +71,13 @@ export default function AdminBloodRequestsPage() {
       toast.error(err.message || "Gagal");
     } finally {
       setFulfilling(null);
+      setConfirmReq(null);
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <p className="text-gray-500">Akses ditolak. Halaman ini hanya untuk admin.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Manajemen Permintaan Darah</h1>
         <Button variant="outline" size="sm" onClick={() => router.push("/requests/new")}>
           <Plus className="h-4 w-4 mr-1" /> Buat Permintaan
@@ -84,6 +90,15 @@ export default function AdminBloodRequestsPage() {
             <Card key={i} className="animate-pulse"><CardContent className="h-20" /></Card>
           ))}
         </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
+            <p className="mt-2 font-medium text-foreground">Gagal memuat permintaan</p>
+            <p className="text-xs text-muted-foreground break-words">{error}</p>
+            <Button size="sm" variant="outline" className="mt-4" onClick={retry}>Coba lagi</Button>
+          </CardContent>
+        </Card>
       ) : requests.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -99,14 +114,14 @@ export default function AdminBloodRequestsPage() {
             return (
               <Card key={req.id}>
                 <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap sm:gap-4">
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-red-100">
                         <Droplets className="h-5 w-5 text-red-600" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground">{req.patient_name}</p>
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <p className="min-w-0 truncate text-sm font-semibold text-foreground">{req.patient_name}</p>
                           <BloodTypeBadge type={req.blood_type} size="sm" />
                           {req.urgency === "critical" && (
                             <Badge variant="destructive" className="text-[10px] px-1 py-0">KRITIS</Badge>
@@ -116,7 +131,7 @@ export default function AdminBloodRequestsPage() {
                           <MapPin className="h-3 w-3" />
                           <span>{req.hospital}{req.city ? `, ${req.city_name || req.city}` : ""}</span>
                         </div>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-[#94a3b8]">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {new Date(req.created_at).toLocaleDateString("id-ID")}
@@ -127,13 +142,13 @@ export default function AdminBloodRequestsPage() {
                       </div>
                     </div>
                     <Button
-                      onClick={() => handleFulfill(req.id)}
+                      onClick={() => setConfirmReq(req)}
                       disabled={fulfilling === req.id}
                       size="sm"
                       variant="outline"
                       className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                     >
-                      {fulfilling === req.id ? "..." : "Tandai Terpenuhi"}
+                      {fulfilling === req.id ? "Memproses…" : "Tandai Terpenuhi"}
                     </Button>
                   </div>
                 </CardContent>
@@ -142,6 +157,22 @@ export default function AdminBloodRequestsPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmReq}
+        title="Tandai permintaan terpenuhi?"
+        description={confirmReq ? (
+          <>
+            Permintaan untuk <strong>{confirmReq.patient_name}</strong> ({confirmReq.blood_type},{" "}
+            {confirmReq.bags} kantong) di <strong>{confirmReq.hospital}</strong> akan ditandai terpenuhi
+            sebagai donasi langsung (tidak via aplikasi).
+          </>
+        ) : null}
+        confirmText="Tandai Terpenuhi"
+        loading={!!confirmReq && fulfilling === confirmReq.id}
+        onConfirm={() => confirmReq && handleFulfill(confirmReq.id)}
+        onCancel={() => setConfirmReq(null)}
+      />
     </div>
   );
 }

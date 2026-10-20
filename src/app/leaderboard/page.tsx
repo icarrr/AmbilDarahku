@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { GlassCard } from "@/components/glass-card";
 import { BloodTypeBadge } from "@/components/blood-type-badge";
+import { Button } from "@/components/ui/button";
 import { Trophy, Award, Medal, Crown, Droplets, Flame, MapPin, TrendingUp, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ function getInitials(name: string) {
 }
 
 export default function LeaderboardPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [tab, setTab] = useState<"national" | "regional">("national");
   const [cityFilter, setCityFilter] = useState("");
@@ -59,8 +60,12 @@ export default function LeaderboardPage() {
   };
 
   const topPoints = users[0]?.total_points || 1;
+  // Podium needs three entries; with fewer, everyone goes in the plain list.
+  const showPodium = users.length >= 3;
   const top3 = users.slice(0, 3);
-  const rest = users.slice(3);
+  const rest = showPodium ? users.slice(3) : users;
+  const rankOffset = showPodium ? 4 : 1;
+  const canUseRegional = Boolean(user?.city);
   const totalDonationsAll = users.reduce((sum, u) => sum + u.total_donations, 0);
   const isLoggedInUser = (id: string) => user?.id === id;
 
@@ -92,8 +97,10 @@ export default function LeaderboardPage() {
             </button>
             <button
               onClick={() => changeTab("regional")}
+              disabled={!canUseRegional}
+              title={canUseRegional ? undefined : "Lengkapi kota di profil untuk melihat peringkat regional"}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                 effectiveCity ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -102,6 +109,11 @@ export default function LeaderboardPage() {
             </button>
           </div>
         </div>
+        {!canUseRegional && !authLoading && (
+          <p className="mt-2 text-xs text-muted-foreground md:text-right">
+            {user ? "Lengkapi kota di profil untuk melihat peringkat regional." : "Masuk dan lengkapi kota di profil untuk melihat peringkat regional."}
+          </p>
+        )}
       </div>
 
       <div className="relative mb-4">
@@ -110,10 +122,11 @@ export default function LeaderboardPage() {
           value={cityFilter}
           onChange={e => setCityFilter(e.target.value)}
           placeholder="Cari berdasarkan kota..."
+          aria-label="Cari peringkat berdasarkan kota"
           className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-8 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-red-300 focus:ring-1 focus:ring-red-300"
         />
         {cityFilter && (
-          <button onClick={() => setCityFilter("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+          <button onClick={() => setCityFilter("")} aria-label="Hapus pencarian kota" className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         )}
@@ -127,9 +140,9 @@ export default function LeaderboardPage() {
         <GlassCard className="py-10 text-center">
           <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
           <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
-          <button onClick={() => { setLoading(true); setError(false); setRetryCount(c => c + 1); }} className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-foreground hover:bg-gray-50">
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => { setLoading(true); setError(false); setRetryCount(c => c + 1); }}>
             Coba Lagi
-          </button>
+          </Button>
         </GlassCard>
       ) : users.length === 0 ? (
         <GlassCard className="py-10 text-center">
@@ -141,7 +154,7 @@ export default function LeaderboardPage() {
         <GlassCard className="text-center py-3">
           <Droplets className="mx-auto h-5 w-5 text-red-600" />
           <p className="mt-1 font-heading text-xl font-bold text-foreground">{users.length}</p>
-          <p className="text-[10px] text-muted-foreground">Donor Listed</p>
+          <p className="text-[10px] text-muted-foreground">Donor Terdaftar</p>
         </GlassCard>
         <GlassCard className="text-center py-3">
           <TrendingUp className="mx-auto h-5 w-5 text-emerald-500" />
@@ -151,11 +164,11 @@ export default function LeaderboardPage() {
         <GlassCard className="text-center py-3">
           <Flame className="mx-auto h-5 w-5 text-orange-500" />
           <p className="mt-1 font-heading text-xl font-bold text-foreground">{topPoints}</p>
-          <p className="text-[10px] text-muted-foreground">Top Points</p>
+          <p className="text-[10px] text-muted-foreground">Poin Tertinggi</p>
         </GlassCard>
       </div>
 
-      {top3.length === 3 && (
+      {showPodium && (
         <div className="mb-8 flex items-end justify-center gap-3 md:gap-5">
           <div className="order-1 text-center animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
             <Medal className="mx-auto mb-1 h-5 w-5 text-slate-400" />
@@ -198,7 +211,7 @@ export default function LeaderboardPage() {
 
       <div className="space-y-2">
         {rest.map((entry, i) => {
-          const rank = i + 4;
+          const rank = i + rankOffset;
           const isMe = isLoggedInUser(entry.id);
           return (
             <GlassCard
@@ -209,7 +222,7 @@ export default function LeaderboardPage() {
               )}
             >
               <div className="flex-shrink-0 w-7 text-center">
-                <span className="text-xs font-bold text-[#94a3b8]">{rank}</span>
+                <span className="text-xs font-bold text-muted-foreground">{rank}</span>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 text-xs font-bold text-white shadow-sm">
                 {getInitials(entry.full_name)}
@@ -234,7 +247,7 @@ export default function LeaderboardPage() {
               </div>
               <div className="flex-shrink-0 text-right">
                 <p className="font-heading text-base font-bold text-foreground">{entry.total_donations}</p>
-                <p className="text-[10px] text-[#94a3b8]">donasi</p>
+                <p className="text-[10px] text-muted-foreground">donasi</p>
                 <p className="text-[10px] font-medium text-red-600">{entry.total_points} pts</p>
               </div>
             </GlassCard>
@@ -243,7 +256,7 @@ export default function LeaderboardPage() {
       </div>
 
       {users.length > 3 && (
-        <div className="mt-4 flex items-center justify-center gap-1 text-xs text-[#94a3b8]">
+        <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted-foreground">
           <Flame className="h-3 w-3" />
           <span>Total {users.length} donor terdaftar</span>
         </div>

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { getFileUrl } from "@/lib/file-url";
+import { Camera, FileText } from "lucide-react";
 
 type ClaimWithUser = {
   id: string;
@@ -42,6 +43,7 @@ export default function AdminClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<ClaimWithUser | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const fetchClaims = async () => {
     try {
@@ -58,19 +60,12 @@ export default function AdminClaimsPage() {
     if (isAdmin) fetchClaims();
   }, [isAdmin]);
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <p className="text-gray-500">Akses ditolak.</p>
-      </div>
-    );
-  }
-
   const handleReview = async (id: string, status: "approved" | "rejected") => {
     if (status === "rejected" && !rejectionReason.trim()) {
       toast.error("Alasan penolakan harus diisi");
       return;
     }
+    setSubmittingId(id);
     try {
       const body: Record<string, unknown> = { status };
       if (status === "rejected") body.rejection_reason = rejectionReason.trim();
@@ -81,6 +76,8 @@ export default function AdminClaimsPage() {
       fetchClaims();
     } catch {
       toast.error("Gagal mereview klaim");
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -88,26 +85,30 @@ export default function AdminClaimsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Review Klaim Donasi</h1>
-        <p className="text-gray-500 text-sm mt-1">Periksa dan setujui/tolak klaim riwayat donasi dari donor.</p>
+        <p className="text-muted-foreground text-sm mt-1">Periksa dan setujui/tolak klaim riwayat donasi dari donor.</p>
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-400 py-8">Memuat...</p>
+        <p className="text-center text-muted-foreground py-8">Memuat...</p>
       ) : claims.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-gray-500">
+          <CardContent className="py-12 text-center text-muted-foreground">
             Tidak ada klaim tertunda. Semua klaim sudah direview.
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {claims.map(c => (
+          {claims.map(c => {
+            const photoUrl = getFileUrl(c.proof_photo_url);
+            const docUrl = getFileUrl(c.proof_document_url);
+            const submitting = submittingId === c.id;
+            return (
             <Card key={c.id} className="border-l-4 border-l-red-400">
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">{c.full_name}</CardTitle>
-                    <CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base truncate">{c.full_name}</CardTitle>
+                    <CardDescription className="truncate">
                       {c.email} &middot; {c.phone}
                     </CardDescription>
                   </div>
@@ -117,57 +118,59 @@ export default function AdminClaimsPage() {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-500">Tanggal</span>
+                    <span className="text-muted-foreground">Tanggal</span>
                     <p className="font-medium">{formatDate(c.donation_date)}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Gol. Darah</span>
+                    <span className="text-muted-foreground">Gol. Darah</span>
                     <p className="font-medium">{c.blood_type}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Volume</span>
+                    <span className="text-muted-foreground">Volume</span>
                     <p className="font-medium">{(c.volume_ml / 1000).toFixed(2)} L</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Lokasi</span>
+                    <span className="text-muted-foreground">Lokasi</span>
                     <p className="font-medium">{c.location}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Institusi</span>
+                    <span className="text-muted-foreground">Institusi</span>
                     <p className="font-medium">{c.institution_name}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Donor Kota</span>
+                    <span className="text-muted-foreground">Donor Kota</span>
                     <p className="font-medium">{c.donor_city_name || c.donor_city}</p>
                   </div>
                 </div>
 
-                {(c.proof_photo_url || c.proof_document_url || c.additional_notes) && (
+                {(photoUrl || docUrl || c.additional_notes) && (
                   <div className="mt-3 pt-3 border-t space-y-2 text-sm">
-                    {c.proof_photo_url && (
-                      <a href={getFileUrl(c.proof_photo_url) || ""} target="_blank" rel="noopener noreferrer"
-                         className="text-blue-600 hover:underline block truncate">
-                        📷 Bukti Foto
+                    {photoUrl && (
+                      <a href={photoUrl} target="_blank" rel="noopener noreferrer"
+                         className="text-primary hover:underline flex items-center gap-1.5 truncate">
+                        <Camera className="h-4 w-4 shrink-0" /> Bukti Foto
                       </a>
                     )}
-                    {c.proof_document_url && (
-                      <a href={getFileUrl(c.proof_document_url) || ""} target="_blank" rel="noopener noreferrer"
-                         className="text-blue-600 hover:underline block truncate">
-                        📄 Bukti Dokumen
+                    {docUrl && (
+                      <a href={docUrl} target="_blank" rel="noopener noreferrer"
+                         className="text-primary hover:underline flex items-center gap-1.5 truncate">
+                        <FileText className="h-4 w-4 shrink-0" /> Bukti Dokumen
                       </a>
                     )}
                     {c.additional_notes && (
-                      <p className="text-gray-600 italic">&ldquo;{c.additional_notes}&rdquo;</p>
+                      <p className="text-muted-foreground italic break-words">&ldquo;{c.additional_notes}&rdquo;</p>
                     )}
                   </div>
                 )}
 
                 <div className="mt-4 flex gap-2">
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                    disabled={submitting}
                     onClick={() => handleReview(c.id, "approved")}>
-                    Setujui
+                    {submitting && selectedClaim?.id !== c.id ? "Memproses…" : "Setujui"}
                   </Button>
                   <Button size="sm" variant="destructive"
+                    disabled={submitting}
                     onClick={() => setSelectedClaim(selectedClaim?.id === c.id ? null : c)}>
                     Tolak
                   </Button>
@@ -184,10 +187,12 @@ export default function AdminClaimsPage() {
                     />
                     <div className="flex gap-2">
                       <Button size="sm" variant="destructive"
+                        disabled={submitting}
                         onClick={() => handleReview(c.id, "rejected")}>
-                        Konfirmasi Tolak
+                        {submitting ? "Memproses…" : "Konfirmasi Tolak"}
                       </Button>
                       <Button size="sm" variant="outline"
+                        disabled={submitting}
                         onClick={() => { setSelectedClaim(null); setRejectionReason(""); }}>
                         Batal
                       </Button>
@@ -196,7 +201,8 @@ export default function AdminClaimsPage() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

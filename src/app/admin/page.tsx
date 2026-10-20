@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
-import { RefreshCw, Droplets, Wrench, Flag } from "lucide-react";
+import { RefreshCw, Droplets, Wrench, Flag, CheckCircle2, XCircle, Archive, Timer, AlertCircle } from "lucide-react";
 
 type UserItem = {
   id: string;
@@ -81,6 +84,20 @@ const ELIGIBILITY_LABELS: Record<string, string> = {
   needs_clearance: "Izin Dokter",
 };
 
+const RUN_STATUS_LABELS: Record<string, string> = {
+  SUCCESS: "Sukses",
+  FAILED: "Gagal",
+  RUNNING: "Berjalan",
+};
+
+function formatInterval(minutes: number): string {
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const h = minutes / 60;
+    return h === 1 ? "tiap jam" : `tiap ${h} jam`;
+  }
+  return `tiap ${minutes} menit`;
+}
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("id-ID", {
@@ -89,11 +106,30 @@ function formatDateTime(iso: string | null): string {
 }
 
 export default function AdminPage() {
-  const { isAdmin } = useAuth();
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto px-4 py-8"><Skeleton className="h-40 w-full" /></div>}>
+      <AdminPageContent />
+    </Suspense>
+  );
+}
+
+function AdminPageContent() {
+  const { isAdmin, user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tab: "dashboard" | "users" = searchParams.get("tab") === "users" ? "users" : "dashboard";
+  const setTab = (t: "dashboard" | "users") => {
+    router.replace(t === "users" ? `${pathname}?tab=users` : pathname, { scroll: false });
+  };
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [roleSavingId, setRoleSavingId] = useState<string | null>(null);
+  const [consentSavingId, setConsentSavingId] = useState<string | null>(null);
+  const [pendingRole, setPendingRole] = useState<{ user: UserItem; role: string } | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"dashboard" | "users">("dashboard");
   const [scraping, setScraping] = useState(false);
   const [scrapeResult, setScrapeResult] = useState<{
     totalSources: number;
@@ -117,21 +153,41 @@ export default function AdminPage() {
   } | null>(null);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [togglingMaintenance, setTogglingMaintenance] = useState(false);
+  const [confirmMaintenance, setConfirmMaintenance] = useState(false);
   const [scrapeStatus, setScrapeStatus] = useState<ScrapeStatus | null>(null);
+  const [scrapeStatusError, setScrapeStatusError] = useState<string | null>(null);
 
   const loadScrapeStatus = async () => {
     try {
       const d = await api.get<ScrapeStatus>("/admin/scrape");
       setScrapeStatus(d);
-    } catch {
-      // non-fatal — status card stays hidden
+      setScrapeStatusError(null);
+    } catch (err: unknown) {
+      setScrapeStatusError(err instanceof Error ? err.message : "Gagal memuat status scraper");
     }
   };
 
-  const toggleMaintenance = async () => {
+  const loadUsers = async () => {
+    try {
+      const d = await api.get<{ users: UserItem[] }>("/admin/users");
+      setUsers(d.users || []);
+      setUsersError(null);
+    } catch (err: unknown) {
+      setUsersError(err instanceof Error ? err.message : "Gagal memuat pengguna");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const retryUsers = () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    loadUsers();
+  };
+
+  const setMaintenance = async (newVal: boolean) => {
     setTogglingMaintenance(true);
     try {
-      const newVal = !maintenanceMode;
       await api.post("/admin/maintenance", { enabled: newVal });
       setMaintenanceMode(newVal);
       toast.success(newVal ? "Mode pemeliharaan AKTIF" : "Mode pemeliharaan NONAKTIF");
@@ -139,7 +195,13 @@ export default function AdminPage() {
       toast.error(err.message || "Gagal mengubah mode pemeliharaan");
     } finally {
       setTogglingMaintenance(false);
+      setConfirmMaintenance(false);
     }
+  };
+
+  const onMaintenanceClick = () => {
+    if (maintenanceMode) setMaintenance(false);
+    else setConfirmMaintenance(true);
   };
 
   const handleScrape = async () => {
@@ -175,7 +237,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    api.get<{ users: UserItem[] }>("/admin/users").then(d => setUsers(d.users || [])).catch(() => {});
+    loadUsers();
     api.get<AdminStats>("/admin/stats").then(d => setStats(d)).catch(() => {});
     api.get<{ enabled: boolean }>("/admin/maintenance").then(d => setMaintenanceMode(d.enabled)).catch(() => {});
     loadScrapeStatus();
@@ -183,31 +245,39 @@ export default function AdminPage() {
     return () => clearInterval(t);
   }, [isAdmin]);
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <p className="text-gray-500">Akses ditolak. Halaman ini hanya untuk admin.</p>
-      </div>
-    );
-  }
-
   const updateRole = async (id: string, role: string) => {
+    setRoleSavingId(id);
     try {
       await api.put(`/admin/users/${id}/role`, { role });
       toast.success("Role diperbarui");
       setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u));
     } catch {
       toast.error("Gagal memperbarui role");
+    } finally {
+      setRoleSavingId(null);
+      setPendingRole(null);
+    }
+  };
+
+  const onRoleChange = (u: UserItem, role: string) => {
+    if (role === u.role) return;
+    if (role === "super_admin" || u.role === "super_admin") {
+      setPendingRole({ user: u, role });
+    } else {
+      updateRole(u.id, role);
     }
   };
 
   const toggleConsent = async (id: string, contact_consent: boolean) => {
+    setConsentSavingId(id);
     try {
       await api.put(`/admin/users/${id}/role`, { contact_consent });
       toast.success(contact_consent ? "Kontak diizinkan" : "Kontak dinonaktifkan");
       setUsers(prev => prev.map(u => u.id === id ? { ...u, contact_consent } : u));
     } catch {
       toast.error("Gagal memperbarui preferensi kontak");
+    } finally {
+      setConsentSavingId(null);
     }
   };
 
@@ -218,7 +288,7 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Panel Admin</h1>
         <div className="flex gap-2">
           <Button variant={tab === "dashboard" ? "default" : "outline"} size="sm" onClick={() => setTab("dashboard")}>
@@ -329,7 +399,7 @@ export default function AdminPage() {
           <Card className={maintenanceMode ? "border-amber-400 ring-1 ring-amber-400" : ""}>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Wrench className={`h-4 w-4 ${maintenanceMode ? "text-amber-500" : "text-gray-500"}`} />
+                <Wrench className={`h-4 w-4 ${maintenanceMode ? "text-amber-500" : "text-muted-foreground"}`} />
                 Mode Pemeliharaan
               </CardTitle>
               <CardDescription>
@@ -337,22 +407,30 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={toggleMaintenance}
+                    type="button"
+                    role="switch"
+                    aria-checked={maintenanceMode}
+                    aria-label="Mode pemeliharaan"
+                    onClick={onMaintenanceClick}
                     disabled={togglingMaintenance}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      maintenanceMode ? "bg-amber-500" : "bg-gray-200"
-                    }`}
+                    className="-m-2 inline-flex min-h-10 min-w-10 items-center justify-center rounded-full p-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
                   >
                     <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
-                        maintenanceMode ? "translate-x-[22px]" : "translate-x-0.5"
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        maintenanceMode ? "bg-amber-500" : "bg-muted"
                       }`}
-                    />
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                          maintenanceMode ? "translate-x-[22px]" : "translate-x-0.5"
+                        }`}
+                      />
+                    </span>
                   </button>
-                  <span className={`text-sm font-semibold ${maintenanceMode ? "text-amber-600" : "text-gray-500"}`}>
+                  <span className={`text-sm font-semibold ${maintenanceMode ? "text-amber-600" : "text-muted-foreground"}`}>
                     {maintenanceMode ? "Aktif" : "Aman"}
                   </span>
                 </div>
@@ -362,12 +440,34 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+          <ConfirmDialog
+            open={confirmMaintenance}
+            variant="destructive"
+            title="Aktifkan mode pemeliharaan?"
+            description="Situs publik tidak akan dapat diakses: semua pengunjung akan melihat halaman pemeliharaan sampai mode ini dimatikan. Halaman admin dan API tetap berjalan."
+            confirmText="Aktifkan"
+            loading={togglingMaintenance}
+            onConfirm={() => setMaintenance(true)}
+            onCancel={() => setConfirmMaintenance(false)}
+          />
+
+          {scrapeStatusError && !scrapeStatus && (
+            <Card>
+              <CardContent className="flex flex-wrap items-center gap-2 py-4 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+                <span className="min-w-0 flex-1 break-words text-muted-foreground">
+                  Status scraper tidak dapat dimuat: {scrapeStatusError}
+                </span>
+                <Button size="sm" variant="outline" onClick={loadScrapeStatus}>Coba lagi</Button>
+              </CardContent>
+            </Card>
+          )}
 
           {scrapeStatus && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <RefreshCw className={`h-4 w-4 ${scrapeStatus.status === "RUNNING" ? "text-amber-500 animate-spin" : "text-gray-500"}`} />
+                  <RefreshCw className={`h-4 w-4 ${scrapeStatus.status === "RUNNING" ? "text-amber-500 animate-spin" : "text-muted-foreground"}`} />
                   Scraper Otomatis
                   <Badge variant={scrapeStatus.status === "RUNNING" ? "destructive" : scrapeStatus.consecutiveFailures > 0 ? "outline" : "default"} className="text-xs">
                     {scrapeStatus.status === "RUNNING" ? "Berjalan" : scrapeStatus.consecutiveFailures > 0 ? `Gagal (${scrapeStatus.consecutiveFailures}x)` : "Idle"}
@@ -382,29 +482,49 @@ export default function AdminPage() {
               <CardContent className="text-sm space-y-1">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div>
-                    <p className="text-gray-500">Last Run</p>
+                    <p className="text-muted-foreground">Last Run</p>
                     <p className="font-medium">{formatDateTime(scrapeStatus.lastRunAt)}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Next Run</p>
+                    <p className="text-muted-foreground">Next Run</p>
                     <p className="font-medium">{formatDateTime(scrapeStatus.nextRunAt)}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Status Terakhir</p>
-                    <p className="font-medium">{scrapeStatus.runs[0]?.status === "FAILED" ? "Gagal" : scrapeStatus.runs[0]?.status === "SUCCESS" ? "Sukses" : "—"}</p>
+                    <p className="text-muted-foreground">Status Terakhir</p>
+                    <p className="font-medium">{scrapeStatus.runs[0] ? RUN_STATUS_LABELS[scrapeStatus.runs[0].status] || scrapeStatus.runs[0].status : "—"}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Durasi</p>
+                    <p className="text-muted-foreground">Durasi</p>
                     <p className="font-medium">{scrapeStatus.runs[0]?.durationMs ? `${(scrapeStatus.runs[0].durationMs / 1000).toFixed(1)} dtk` : "—"}</p>
                   </div>
                 </div>
                 {scrapeStatus.runs[0]?.counts && (
-                  <p className="text-xs text-gray-600 pt-2">
+                  <p className="text-xs text-muted-foreground pt-2">
                     Event: {scrapeStatus.runs[0].counts.eventsNew ?? "—"} · Darah: {scrapeStatus.runs[0].counts.bloodRequestsAffected ?? "—"} · Profil: {scrapeStatus.runs[0].counts.profilesInserted ?? "—"} · Donor: {scrapeStatus.runs[0].counts.donorsInserted ?? "—"} · Status Donor: {scrapeStatus.runs[0].counts.donorStatusesUpdated ?? "—"}
                   </p>
                 )}
                 {scrapeStatus.runs[0]?.errorMessage && (
-                  <p className="text-xs text-red-500 pt-1">Alasan: {scrapeStatus.runs[0].errorMessage}</p>
+                  <p className="text-xs text-red-500 pt-1 break-words line-clamp-3" title={scrapeStatus.runs[0].errorMessage}>
+                    Alasan: {scrapeStatus.runs[0].errorMessage}
+                  </p>
+                )}
+                {scrapeStatus.runs.length > 1 && (
+                  <div className="pt-3">
+                    <p className="text-xs font-medium text-muted-foreground">Riwayat terakhir</p>
+                    <ul className="mt-1 divide-y divide-border text-xs">
+                      {scrapeStatus.runs.slice(0, 5).map(r => (
+                        <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-1">
+                          <span className="tabular-nums text-muted-foreground">{formatDateTime(r.startedAt)}</span>
+                          <span className={r.status === "FAILED" ? "font-medium text-red-600" : r.status === "SUCCESS" ? "font-medium text-emerald-600" : "font-medium text-amber-600"}>
+                            {RUN_STATUS_LABELS[r.status] || r.status}
+                          </span>
+                          <span className="text-muted-foreground">
+                            Event {r.counts.eventsNew ?? "—"} · Darah {r.counts.bloodRequestsAffected ?? "—"} · Profil {r.counts.profilesInserted ?? "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -417,62 +537,69 @@ export default function AdminPage() {
                 Scrape Semua
               </CardTitle>
               <CardDescription>
-                Scrape event donor darah + permintaan darah + profil donor dari sumber eksternal. Berjalan otomatis tiap jam.
+                Scrape event donor darah + permintaan darah + profil donor dari sumber eksternal.
+                {scrapeStatus?.enabled ? ` Berjalan otomatis ${formatInterval(scrapeStatus.intervalMinutes)}.` : ""}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
                 <Button onClick={handleScrape} disabled={scraping} size="sm">
                   {scraping ? "Memproses..." : "Scrape Now"}
                 </Button>
                 {scraping && (
-                  <span className="text-sm text-gray-500 animate-pulse">
+                  <span className="text-sm text-muted-foreground animate-pulse">
                     Mengumpulkan data...
                   </span>
                 )}
               </div>
               {scrapeResult && !scraping && (
                 <div className="text-sm space-y-2">
-                  <p className="text-green-600 font-medium">
-                    ✓ Event: {scrapeResult.totalScraped} ditemukan, {scrapeResult.totalNew} baru
-                    {scrapeResult.totalErrors > 0 && <span className="text-red-500">, {scrapeResult.totalErrors} error</span>}
+                  <p className="text-green-600 font-medium flex items-start gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>Event: {scrapeResult.totalScraped} ditemukan, {scrapeResult.totalNew} baru
+                    {scrapeResult.totalErrors > 0 && <span className="text-red-500">, {scrapeResult.totalErrors} error</span>}</span>
                   </p>
                   <div className="pl-4 space-y-1">
                     {scrapeResult.sources.map((s, i) => (
-                      <p key={i} className="text-xs text-gray-600">
+                      <p key={i} className="text-xs text-muted-foreground">
                         {s.error ? (
-                          <span className="text-red-500">✗ {s.name}: {s.error}</span>
+                          <span className="flex items-start gap-1 text-red-500" title={s.error}>
+                            <XCircle className="h-3.5 w-3.5 mt-px shrink-0" />
+                            <span className="min-w-0 break-words [overflow-wrap:anywhere] line-clamp-3">{s.name}: {s.error}</span>
+                          </span>
                         ) : (
                           <span>{s.name}: {s.found} event ({s.new} baru)</span>
                         )}
                       </p>
                     ))}
                     {scrapeResult.archivedCount > 0 && (
-                      <p className="text-amber-600 text-xs">🗄 {scrapeResult.archivedCount} event lama diarsipkan</p>
+                      <p className="text-amber-600 text-xs flex items-center gap-1"><Archive className="h-3.5 w-3.5 shrink-0" /> {scrapeResult.archivedCount} event lama diarsipkan</p>
                     )}
                   </div>
                   {brResult && (
                     <>
-                      <p className="text-green-600 font-medium">
-                        ✓ Darah: {brResult.affected} permintaan diproses dari {brResult.total}
-                        {brResult.errors > 0 && <span className="text-red-500">, {brResult.errors} error</span>}
+                      <p className="text-green-600 font-medium flex items-start gap-1.5">
+                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>Darah: {brResult.affected} permintaan diproses dari {brResult.total}
+                        {brResult.errors > 0 && <span className="text-red-500">, {brResult.errors} error</span>}</span>
                       </p>
                     </>
                   )}
                   {profileResult && (
                     <>
-                      <p className="text-green-600 font-medium">
-                        ✓ Profil: {profileResult.profilesInserted} profil baru, {profileResult.donorsInserted} donor baru
-                        {profileResult.profilesSkipped > 0 && <span className="text-gray-500"> ({profileResult.profilesSkipped} sudah ada)</span>}
-                        {profileResult.donorsSkipped > 0 && <span className="text-gray-500"> · {profileResult.donorsSkipped} donor skip</span>}
+                      <p className="text-green-600 font-medium flex items-start gap-1.5">
+                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>Profil: {profileResult.profilesInserted} profil baru, {profileResult.donorsInserted} donor baru
+                        {profileResult.profilesSkipped > 0 && <span className="text-muted-foreground"> ({profileResult.profilesSkipped} sudah ada)</span>}
+                        {profileResult.donorsSkipped > 0 && <span className="text-muted-foreground"> · {profileResult.donorsSkipped} donor skip</span>}</span>
                       </p>
                     </>
                   )}
-                  <p className="text-gray-400 text-xs">⏱ Event {(scrapeResult.durationMs / 1000).toFixed(1)}s{brResult ? ` · Darah ${(brResult.durationMs / 1000).toFixed(1)}s` : ""}{profileResult ? ` · Profil ${(profileResult.durationMs / 1000).toFixed(1)}s` : ""}</p>
+                  <p className="text-muted-foreground text-xs flex items-center gap-1"><Timer className="h-3.5 w-3.5 shrink-0" /> Event {(scrapeResult.durationMs / 1000).toFixed(1)}s{brResult ? ` · Darah ${(brResult.durationMs / 1000).toFixed(1)}s` : ""}{profileResult ? ` · Profil ${(profileResult.durationMs / 1000).toFixed(1)}s` : ""}</p>
                 </div>
               )}
               {scrapeError && !scraping && (
-                <p className="text-sm text-red-600">{scrapeError}</p>
+                <p className="text-sm text-red-600 break-words [overflow-wrap:anywhere] line-clamp-3" title={scrapeError}>{scrapeError}</p>
               )}
             </CardContent>
           </Card>
@@ -490,12 +617,24 @@ export default function AdminPage() {
               placeholder="Cari nama atau email..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm mb-4"
+              aria-label="Cari pengguna"
+              className="w-full px-3 py-2 border border-border bg-transparent rounded-md text-sm mb-4"
             />
+            {usersLoading ? (
+              <div className="space-y-2" aria-busy="true" aria-label="Memuat pengguna">
+                {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            ) : usersError ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <p className="text-sm text-muted-foreground break-words">Gagal memuat pengguna: {usersError}</p>
+                <Button size="sm" variant="outline" onClick={retryUsers}>Coba lagi</Button>
+              </div>
+            ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-gray-500">
+                  <tr className="border-b text-left text-muted-foreground">
                     <th className="pb-2 font-medium">Nama</th>
                     <th className="pb-2 font-medium">Email</th>
                     <th className="pb-2 font-medium">Role</th>
@@ -508,10 +647,14 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(u => (
-                    <tr key={u.id} className="border-b hover:bg-gray-50 dark:hover:bg-zinc-900">
+                  {filtered.map(u => {
+                    const isSelf = u.id === user?.id;
+                    return (
+                    <tr key={u.id} className="border-b hover:bg-muted/50">
                       <td className="py-2 pr-4">{u.full_name}</td>
-                      <td className="py-2 pr-4 text-gray-500">{u.email}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">
+                        <span className="block truncate max-w-[200px]" title={u.email}>{u.email}</span>
+                      </td>
                       <td className="py-2 pr-4">
                         <Badge variant="outline">{ROLE_LABELS[u.role] || u.role}</Badge>
                       </td>
@@ -525,21 +668,31 @@ export default function AdminPage() {
                       </td>
                       <td className="py-2 pr-4">
                         <button
+                          type="button"
                           onClick={() => toggleConsent(u.id, !u.contact_consent)}
-                          title="Boleh dihubungi utk donor?"
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                            u.contact_consent ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+                          disabled={consentSavingId === u.id}
+                          aria-pressed={!!u.contact_consent}
+                          aria-label={`Izin kontak ${u.full_name}: ${u.contact_consent ? "boleh dihubungi" : "tidak"}`}
+                          title="Boleh dihubungi untuk donor?"
+                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                            u.contact_consent ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {u.contact_consent ? "Seizin" : "Diam"}
+                          {u.contact_consent ? "Boleh dihubungi" : "Tidak"}
                         </button>
                       </td>
                       <td className="py-2">
                         <Select
                           value={u.role}
-                          onValueChange={v => updateRole(u.id, v ?? "donor")}
+                          items={ROLE_LABELS}
+                          onValueChange={v => onRoleChange(u, v ?? "donor")}
+                          disabled={isSelf || roleSavingId === u.id}
                         >
-                          <SelectTrigger className="w-36 h-8 text-xs">
+                          <SelectTrigger
+                            className="w-36 h-8 text-xs"
+                            aria-label={`Role ${u.full_name}`}
+                            title={isSelf ? "Anda tidak dapat mengubah role Anda sendiri" : undefined}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -550,16 +703,39 @@ export default function AdminPage() {
                         </Select>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             {filtered.length === 0 && (
-              <p className="text-center text-gray-500 py-4">Tidak ada pengguna</p>
+              <p className="text-center text-muted-foreground py-4">Tidak ada pengguna</p>
+            )}
+            </>
             )}
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={!!pendingRole}
+        variant="destructive"
+        title="Ubah role Super Admin?"
+        description={pendingRole ? (
+          <>
+            Role <strong>{pendingRole.user.full_name}</strong> akan diubah dari{" "}
+            <strong>{ROLE_LABELS[pendingRole.user.role] || pendingRole.user.role}</strong> menjadi{" "}
+            <strong>{ROLE_LABELS[pendingRole.role] || pendingRole.role}</strong>.{" "}
+            {pendingRole.role === "super_admin"
+              ? "Super Admin memiliki akses penuh ke panel admin."
+              : "Pengguna ini akan kehilangan akses Super Admin."}
+          </>
+        ) : null}
+        confirmText="Ubah Role"
+        loading={!!pendingRole && roleSavingId === pendingRole.user.id}
+        onConfirm={() => pendingRole && updateRole(pendingRole.user.id, pendingRole.role)}
+        onCancel={() => setPendingRole(null)}
+      />
     </div>
   );
 }

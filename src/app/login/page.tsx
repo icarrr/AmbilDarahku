@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,20 @@ import { GlassCard } from "@/components/glass-card";
 import { toast } from "sonner";
 import { Droplets } from "lucide-react";
 
-export default function LoginPage() {
+// Only same-origin relative paths; "//host" would be protocol-relative (open redirect).
+function safeNext(next: string | null): string {
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/profile";
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
   const { login, user } = useAuth();
 
   useEffect(() => {
-    if (user) router.replace("/profile");
-  }, [user, router]);
+    if (user) router.replace(next);
+  }, [user, router, next]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +35,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success("Berhasil masuk");
-      router.push("/profile");
+      router.replace(next);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Gagal masuk";
       toast.error(message);
@@ -50,14 +57,14 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Surel</Label>
-            <Input id="email" type="email" placeholder="email@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+            <Input id="email" type="email" autoComplete="email" placeholder="email@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Kata Sandi</Label>
               <Link href="/forgot-password" className="text-xs font-medium text-red-600 hover:text-red-700">Lupa password?</Link>
             </div>
-            <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+            <Input id="password" type="password" autoComplete="current-password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Memproses..." : "Masuk"}
@@ -69,5 +76,13 @@ export default function LoginPage() {
         </p>
       </GlassCard>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-lg px-4 py-6"><p className="text-muted-foreground">Memuat...</p></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

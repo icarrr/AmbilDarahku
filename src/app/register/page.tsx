@@ -211,50 +211,50 @@ export default function RegisterPage() {
           {step === 1 && (
             <>
               <div className="space-y-1.5">
-                <Label>Nama Lengkap</Label>
+                <Label htmlFor="reg-full_name">Nama Lengkap</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.full_name && "border-red-400")} placeholder="Nama lengkap" value={form.full_name} onChange={e => update("full_name", e.target.value)} required />
+                  <Input id="reg-full_name" autoComplete="name" aria-invalid={!!errors.full_name} className={cn("pl-10", errors.full_name && "border-red-400")} placeholder="Nama lengkap" value={form.full_name} onChange={e => update("full_name", e.target.value)} required />
                 </div>
                 {fieldError("full_name")}
               </div>
               <div className="space-y-1.5">
-                <Label>Surel</Label>
+                <Label htmlFor="reg-email">Surel</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.email && "border-red-400")} type="email" placeholder="email@example.com" value={form.email} onChange={e => update("email", e.target.value)} required />
+                  <Input id="reg-email" autoComplete="email" aria-invalid={!!errors.email} className={cn("pl-10", errors.email && "border-red-400")} type="email" placeholder="email@example.com" value={form.email} onChange={e => update("email", e.target.value)} required />
                 </div>
                 {fieldError("email")}
               </div>
               <div className="space-y-1.5">
-                <Label>Nomor WhatsApp</Label>
+                <Label htmlFor="reg-phone">Nomor WhatsApp</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.phone && "border-red-400")} placeholder="08xxxx" value={form.phone} onChange={e => update("phone", e.target.value)} required />
+                  <Input id="reg-phone" type="tel" inputMode="tel" autoComplete="tel" aria-invalid={!!errors.phone} className={cn("pl-10", errors.phone && "border-red-400")} placeholder="08xxxx" value={form.phone} onChange={e => update("phone", e.target.value)} required />
                 </div>
                 {fieldError("phone")}
               </div>
               <div className="space-y-1.5">
-                <Label>Kata Sandi</Label>
+                <Label htmlFor="reg-password">Kata Sandi</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input className={cn("pl-10", errors.password && "border-red-400")} type="password" placeholder="Min. 6 karakter" value={form.password} onChange={e => update("password", e.target.value)} required />
+                  <Input id="reg-password" autoComplete="new-password" aria-invalid={!!errors.password} className={cn("pl-10", errors.password && "border-red-400")} type="password" placeholder="Min. 6 karakter" value={form.password} onChange={e => update("password", e.target.value)} required />
                 </div>
                 {fieldError("password")}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <Label>Tanggal Lahir</Label>
+                  <Label htmlFor="reg-date_of_birth">Tanggal Lahir</Label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input className={cn("pl-10", errors.date_of_birth && "border-red-400")} type="date" value={form.date_of_birth} onChange={e => update("date_of_birth", e.target.value)} required />
+                    <Input id="reg-date_of_birth" autoComplete="bday" aria-invalid={!!errors.date_of_birth} className={cn("pl-10", errors.date_of_birth && "border-red-400")} type="date" value={form.date_of_birth} onChange={e => update("date_of_birth", e.target.value)} required />
                   </div>
                   {fieldError("date_of_birth")}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Jenis Kelamin</Label>
+                  <Label htmlFor="reg-gender">Jenis Kelamin</Label>
                   <Select value={form.gender} onValueChange={v => update("gender", v ?? "")}>
-                    <SelectTrigger className={errors.gender ? "border-red-400" : ""}><SelectValue placeholder="Pilih" /></SelectTrigger>
+                    <SelectTrigger id="reg-gender" className={errors.gender ? "border-red-400" : ""}><SelectValue placeholder="Pilih" /></SelectTrigger>
                     <SelectContent>
                       {GENDERS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
                     </SelectContent>
@@ -269,9 +269,9 @@ export default function RegisterPage() {
           {step === 2 && (
             <>
               <div className="space-y-1.5">
-                <Label>Golongan Darah</Label>
+                <Label htmlFor="reg-blood_type">Golongan Darah</Label>
                 <Select value={form.blood_type} onValueChange={v => update("blood_type", v ?? "")}>
-                  <SelectTrigger className={errors.blood_type ? "border-red-400" : ""}><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectTrigger id="reg-blood_type" className={errors.blood_type ? "border-red-400" : ""}><SelectValue placeholder="Pilih" /></SelectTrigger>
                   <SelectContent>
                     {BLOOD_TYPES.map(bt => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}
                   </SelectContent>
@@ -280,18 +280,18 @@ export default function RegisterPage() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
-                  <Label>Berat Badan (kg)</Label>
+                  <Label htmlFor="reg-weight_kg">Berat Badan (kg)</Label>
                   <div className="relative">
                     <Weight className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input className={cn("pl-10", errors.weight_kg && "border-red-400")} type="number" step="0.1" placeholder="55" value={form.weight_kg} onChange={e => update("weight_kg", e.target.value)} required />
+                    <Input id="reg-weight_kg" inputMode="decimal" aria-invalid={!!errors.weight_kg} className={cn("pl-10", errors.weight_kg && "border-red-400")} type="number" step="0.1" placeholder="55" value={form.weight_kg} onChange={e => update("weight_kg", e.target.value)} required />
                   </div>
                   {fieldError("weight_kg")}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Tinggi Badan (cm)</Label>
+                  <Label htmlFor="reg-height_cm">Tinggi Badan (cm)</Label>
                   <div className="relative">
                     <Ruler className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input className={cn("pl-10", errors.height_cm && "border-red-400")} type="number" step="0.1" placeholder="165" value={form.height_cm} onChange={e => update("height_cm", e.target.value)} required />
+                    <Input id="reg-height_cm" inputMode="decimal" aria-invalid={!!errors.height_cm} className={cn("pl-10", errors.height_cm && "border-red-400")} type="number" step="0.1" placeholder="165" value={form.height_cm} onChange={e => update("height_cm", e.target.value)} required />
                   </div>
                   {fieldError("height_cm")}
                 </div>
@@ -306,7 +306,7 @@ export default function RegisterPage() {
           {step === 3 && (
             <>
               <div className="space-y-1.5">
-                <Label>Provinsi</Label>
+                <Label htmlFor="reg-province">Provinsi</Label>
                 <Select
                   value={selProv}
                   onValueChange={(v) => {
@@ -319,7 +319,7 @@ export default function RegisterPage() {
                   }}
                   disabled={!wilayah.loaded}
                 >
-                  <SelectTrigger className={cn(errors.province && "border-red-400")}>
+                  <SelectTrigger id="reg-province" className={cn(errors.province && "border-red-400")}>
                     <SelectValue placeholder={wilayah.loaded ? "Pilih provinsi..." : "Memuat..."} />
                   </SelectTrigger>
                   <SelectContent>
@@ -331,7 +331,7 @@ export default function RegisterPage() {
                 {fieldError("province")}
               </div>
               <div className="space-y-1.5">
-                <Label>Kabupaten/Kota</Label>
+                <Label htmlFor="reg-city">Kabupaten/Kota</Label>
                 <Select
                   value={selCity}
                   onValueChange={(v) => {
@@ -342,7 +342,7 @@ export default function RegisterPage() {
                   }}
                   disabled={!selProv || !wilayah.loaded}
                 >
-                  <SelectTrigger className={cn(errors.city && "border-red-400")}>
+                  <SelectTrigger id="reg-city" className={cn(errors.city && "border-red-400")}>
                     <SelectValue placeholder={selProv ? "Pilih kota..." : "Pilih provinsi dulu"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -354,13 +354,13 @@ export default function RegisterPage() {
                 {fieldError("city")}
               </div>
               <div className="space-y-1.5">
-                <Label>Kecamatan</Label>
+                <Label htmlFor="reg-district">Kecamatan</Label>
                 <Select
                   value={form.district}
                   onValueChange={(v) => update("district", v || "")}
                   disabled={!selCity || !wilayah.loaded}
                 >
-                  <SelectTrigger className={cn(errors.district && "border-red-400")}>
+                  <SelectTrigger id="reg-district" className={cn(errors.district && "border-red-400")}>
                     <SelectValue placeholder={selCity ? "Pilih kecamatan..." : "Pilih kota dulu"} />
                   </SelectTrigger>
                   <SelectContent>

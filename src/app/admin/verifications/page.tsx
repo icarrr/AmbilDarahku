@@ -47,6 +47,7 @@ export default function AdminVerificationsPage() {
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const fetchVerifications = async () => {
     try {
@@ -63,18 +64,11 @@ export default function AdminVerificationsPage() {
     if (isAdmin) fetchVerifications();
   }, [isAdmin]);
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-12 text-center">
-        <p className="text-gray-500">Akses ditolak.</p>
-      </div>
-    );
-  }
-
   const handleReview = async (id: string, status: "approved" | "rejected") => {
+    setSubmittingId(id);
     try {
       const body: Record<string, unknown> = { status };
-      if (notes.trim()) body.notes = notes.trim();
+      if (status === "rejected" && notes.trim()) body.notes = notes.trim();
       await api.put(`/admin/verifications/${id}/review`, body);
       toast.success(status === "approved" ? "Verifikasi disetujui" : "Verifikasi ditolak");
       setActiveId(null);
@@ -82,6 +76,8 @@ export default function AdminVerificationsPage() {
       fetchVerifications();
     } catch {
       toast.error("Gagal mereview verifikasi");
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -89,14 +85,14 @@ export default function AdminVerificationsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Review Verifikasi Donor</h1>
-        <p className="text-gray-500 text-sm mt-1">Tinjau dan setujui/tolak permintaan kenaikan level verifikasi donor.</p>
+        <p className="text-muted-foreground text-sm mt-1">Tinjau dan setujui/tolak permintaan kenaikan level verifikasi donor.</p>
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-400 py-8">Memuat...</p>
+        <p className="text-center text-muted-foreground py-8">Memuat...</p>
       ) : verifications.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-gray-500">
+          <CardContent className="py-12 text-center text-muted-foreground">
             Tidak ada permintaan verifikasi tertunda.
           </CardContent>
         </Card>
@@ -105,14 +101,14 @@ export default function AdminVerificationsPage() {
           {verifications.map(v => (
             <Card key={v.id} className="border-l-4 border-l-amber-400">
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">{v.full_name}</CardTitle>
-                    <CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base truncate">{v.full_name}</CardTitle>
+                    <CardDescription className="truncate">
                       {v.email} &middot; {v.phone} &middot; {v.city_name || v.city}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge className={LEVEL_COLORS[v.level] || ""}>
                       {LEVEL_LABELS[v.level] || `Level ${v.level}`}
                     </Badge>
@@ -123,37 +119,39 @@ export default function AdminVerificationsPage() {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-500">Gol. Darah</span>
+                    <span className="text-muted-foreground">Gol. Darah</span>
                     <p className="font-medium">{v.blood_type}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Kota</span>
+                    <span className="text-muted-foreground">Kota</span>
                     <p className="font-medium">{v.city_name || v.city}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Level Saat Ini</span>
+                    <span className="text-muted-foreground">Level Saat Ini</span>
                     <p className="font-medium">{v.user_level}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Diminta</span>
+                    <span className="text-muted-foreground">Diminta</span>
                     <p className="font-medium">{formatDate(v.created_at)}</p>
                   </div>
                 </div>
 
                 {v.notes && (
                   <div className="mt-3 pt-3 border-t text-sm">
-                    <span className="text-gray-500">Catatan pemohon:</span>
-                    <p className="italic mt-1">{v.notes}</p>
+                    <span className="text-muted-foreground">Catatan pemohon:</span>
+                    <p className="italic mt-1 break-words">{v.notes}</p>
                   </div>
                 )}
 
                 <div className="mt-4 flex gap-2">
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                    disabled={submittingId === v.id}
                     onClick={() => handleReview(v.id, "approved")}>
-                    Setujui (Level {v.level})
+                    {submittingId === v.id && activeId !== v.id ? "Memproses…" : `Setujui (Level ${v.level})`}
                   </Button>
                   <Button size="sm" variant="destructive"
-                    onClick={() => setActiveId(activeId === v.id ? null : v.id)}>
+                    disabled={submittingId === v.id}
+                    onClick={() => { setActiveId(activeId === v.id ? null : v.id); setNotes(""); }}>
                     Tolak
                   </Button>
                 </div>
@@ -169,10 +167,12 @@ export default function AdminVerificationsPage() {
                     />
                     <div className="flex gap-2">
                       <Button size="sm" variant="destructive"
+                        disabled={submittingId === v.id}
                         onClick={() => handleReview(v.id, "rejected")}>
-                        Konfirmasi Tolak
+                        {submittingId === v.id ? "Memproses…" : "Konfirmasi Tolak"}
                       </Button>
                       <Button size="sm" variant="outline"
+                        disabled={submittingId === v.id}
                         onClick={() => { setActiveId(null); setNotes(""); }}>
                         Batal
                       </Button>

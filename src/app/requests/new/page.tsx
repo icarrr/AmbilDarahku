@@ -41,6 +41,24 @@ function NewRequestForm() {
     urgency: "critical",
   });
   const [contactConsent, setContactConsent] = useState(Boolean(user?.contact_consent));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const update = (key: keyof typeof form, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+  };
+
+  const fieldError = (key: string) =>
+    errors[key] ? <p id={`${key}-error`} className="mt-0.5 text-xs text-red-500">{errors[key]}</p> : null;
+
+  // `user` may arrive after mount (auth hydrates async) — prefill without clobbering what was typed.
+  // Adjusting state during render on change (no effect) per react.dev "you might not need an effect".
+  const [syncedUser, setSyncedUser] = useState(user);
+  if (user !== syncedUser) {
+    setSyncedUser(user);
+    if (user?.phone && !form.contact_phone) setForm(prev => ({ ...prev, contact_phone: user.phone }));
+    if (user?.contact_consent && !contactConsent) setContactConsent(true);
+  }
 
   useEffect(() => {
     let bt = searchParams?.get?.("blood_type");
@@ -51,14 +69,18 @@ function NewRequestForm() {
     if (bt) {
       setForm(prev => ({ ...prev, blood_type: bt }));
     }
-    if (user?.phone) {
-      setForm(prev => ({ ...prev, contact_phone: user.phone }));
-    }
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async () => {
-    if (!form.patient_name || !form.blood_type || !form.hospital) {
-      toast.error("Lengkapi data utama (nama, golongan darah, rumah sakit)");
+    const e: Record<string, string> = {};
+    if (!form.patient_name.trim()) e.patient_name = "Nama pasien wajib diisi";
+    if (!form.blood_type) e.blood_type = "Pilih golongan darah";
+    const bags = Number(form.bags);
+    if (!Number.isInteger(bags) || bags < 1) e.bags = "Jumlah kantong minimal 1";
+    if (!form.hospital.trim()) e.hospital = "Nama rumah sakit wajib diisi";
+    setErrors(e);
+    if (Object.keys(e).length > 0) {
+      toast.error("Lengkapi data yang ditandai");
       return;
     }
     if (!contactConsent) {
@@ -69,7 +91,7 @@ function NewRequestForm() {
     try {
       const { request } = await api.post<{ request: { id: string } }>("/requests", {
         ...form,
-        bags: parseInt(form.bags),
+        bags: Number(form.bags),
       });
       // Reconfirm consent server-side (the requester is the contactable party)
       await api.put("/auth/me", { contact_consent: true });
@@ -100,30 +122,36 @@ function NewRequestForm() {
 
       <GlassCard className="space-y-4">
         <div className="space-y-1.5">
-          <Label>Nama Pasien</Label>
+          <Label htmlFor="patient_name">Nama Pasien</Label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="patient_name"
               placeholder="Nama lengkap pasien"
               value={form.patient_name}
-              onChange={(e) => setForm({ ...form, patient_name: e.target.value })}
+              onChange={(e) => update("patient_name", e.target.value)}
+              aria-invalid={!!errors.patient_name}
+              aria-describedby={errors.patient_name ? "patient_name-error" : undefined}
               className="pl-10"
             />
           </div>
+          {fieldError("patient_name")}
         </div>
 
         <div className="space-y-1.5">
-          <Label>Golongan Darah</Label>
-          <div className="grid grid-cols-4 gap-2">
+          <Label id="blood_type-label">Golongan Darah</Label>
+          <div className="grid grid-cols-4 gap-2" role="group" aria-labelledby="blood_type-label">
             {BLOOD_OPTIONS.map((bt) => (
               <button
                 key={bt}
-                onClick={() => setForm({ ...form, blood_type: bt })}
+                type="button"
+                aria-pressed={form.blood_type === bt}
+                onClick={() => update("blood_type", bt)}
                 className={cn(
                   "rounded-lg py-2 text-center text-sm font-bold transition-colors",
                   form.blood_type === bt
                     ? "bg-red-600 text-white"
-                    : "bg-muted text-muted-foreground hover:bg-gray-200",
+                    : "bg-muted text-muted-foreground hover:bg-muted/70",
                 )}
               >
                 {bt}
@@ -135,39 +163,51 @@ function NewRequestForm() {
               Golongan darah {form.blood_type}
             </p>
           )}
+          {fieldError("blood_type")}
         </div>
 
         <div className="space-y-1.5">
-          <Label>Jumlah Kantong (Unit)</Label>
+          <Label htmlFor="bags">Jumlah Kantong (Unit)</Label>
           <div className="relative">
-            <Droplets className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Droplets className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="bags"
               type="number"
+              inputMode="numeric"
               min={1}
+              step={1}
               placeholder="1"
               value={form.bags}
-              onChange={(e) => setForm({ ...form, bags: e.target.value })}
+              onChange={(e) => update("bags", e.target.value)}
+              aria-invalid={!!errors.bags}
+              aria-describedby={errors.bags ? "bags-error" : undefined}
               className="pl-10"
             />
           </div>
+          {fieldError("bags")}
         </div>
 
         <div className="space-y-1.5">
-          <Label>Lokasi Rumah Sakit</Label>
+          <Label htmlFor="hospital">Lokasi Rumah Sakit</Label>
           <div className="relative">
-            <Hospital className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Hospital className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="hospital"
               placeholder="Nama rumah sakit"
               value={form.hospital}
-              onChange={(e) => setForm({ ...form, hospital: e.target.value })}
+              onChange={(e) => update("hospital", e.target.value)}
+              aria-invalid={!!errors.hospital}
+              aria-describedby={errors.hospital ? "hospital-error" : undefined}
               className="pl-10"
             />
           </div>
+          {fieldError("hospital")}
         </div>
 
         <div className="space-y-1.5">
-          <Label>Kota</Label>
+          <Label htmlFor="city">Kota</Label>
           <Input
+            id="city"
             placeholder="Kota lokasi rumah sakit"
             value={form.city}
             onChange={(e) => setForm({ ...form, city: e.target.value })}
@@ -175,10 +215,14 @@ function NewRequestForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Nomor WhatsApp Pendamping</Label>
+          <Label htmlFor="contact_phone">Nomor WhatsApp Pendamping</Label>
           <div className="relative">
-            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="contact_phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               placeholder="08xxxx"
               value={form.contact_phone}
               onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
@@ -188,22 +232,23 @@ function NewRequestForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Catatan Tambahan (Opsional)</Label>
+          <Label htmlFor="notes">Catatan Tambahan (Opsional)</Label>
           <div className="relative">
-            <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <textarea
+              id="notes"
               placeholder="Informasi tambahan..."
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={3}
-              className="w-full rounded-xl border-0 bg-muted py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+              className="w-full rounded-xl border-0 bg-muted py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label>Tingkat Urgensi</Label>
-          <div className="flex gap-2">
+          <Label id="urgency-label">Tingkat Urgensi</Label>
+          <div className="flex gap-2" role="group" aria-labelledby="urgency-label">
             {[
               { value: "critical", label: "Kritis" },
               { value: "urgent", label: "Mendesak" },
@@ -211,7 +256,9 @@ function NewRequestForm() {
             ].map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setForm({ ...form, urgency: opt.value })}
+                type="button"
+                aria-pressed={form.urgency === opt.value}
+                onClick={() => update("urgency", opt.value)}
                 className={cn(
                   "flex-1 rounded-lg py-2 text-center text-sm font-medium transition-colors",
                   form.urgency === opt.value
@@ -220,7 +267,7 @@ function NewRequestForm() {
                       : opt.value === "urgent"
                         ? "bg-amber-500 text-white"
                         : "bg-blue-600 text-white"
-                    : "bg-muted text-muted-foreground hover:bg-gray-200",
+                    : "bg-muted text-muted-foreground hover:bg-muted/70",
                 )}
               >
                 {opt.label}
@@ -230,7 +277,7 @@ function NewRequestForm() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 text-xs text-muted-foreground cursor-pointer">
+          <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-xs text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={contactConsent}

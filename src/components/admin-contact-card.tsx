@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
+import { Button } from "@/components/ui/button";
+import { useRegionNames } from "@/lib/hooks/useRegionNames";
 import { Phone, Mail, MapPin, Copy, Check, ShieldCheck } from "lucide-react";
 
 type AdminUserDetail = {
@@ -30,6 +32,7 @@ export function AdminContactCard({ userId }: { userId: string }) {
   const { isAdmin } = useAuth();
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [copied, setCopied] = useState(false);
+  const regionName = useRegionNames([user?.city]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -40,7 +43,7 @@ export function AdminContactCard({ userId }: { userId: string }) {
 
   if (!isAdmin || !user) return null;
 
-  const cityName = user.city || "";
+  const cityName = regionName(user.city);
   const phone = user.phone || "";
   const email = user.email || "";
 
@@ -61,13 +64,10 @@ export function AdminContactCard({ userId }: { userId: string }) {
           <ShieldCheck className="h-4 w-4 text-amber-600" />
           <p className="text-sm font-semibold text-foreground">Kontak Donor (Admin)</p>
         </div>
-        <button
-          onClick={copyContact}
-          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        <Button size="sm" variant="outline" onClick={copyContact} className="px-3">
+          {copied ? <Check /> : <Copy />}
           {copied ? "Tersalin" : "Salin Kontak"}
-        </button>
+        </Button>
       </div>
       <div className="space-y-1.5 text-sm">
         <p className="flex items-center gap-2 text-foreground">

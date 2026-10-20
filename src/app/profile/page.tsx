@@ -6,7 +6,7 @@ import { GlassCard } from "@/components/glass-card";
 import { SectionTitle } from "@/components/section-title";
 import { StatusBadge } from "@/components/status-badge";
 import { Timeline } from "@/components/timeline";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,11 +17,13 @@ import { useWilayah } from "@/lib/hooks/useWilayah";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
 import { coordinatorWaLink } from "@/lib/coordinator";
 import { getAppUrl } from "@/lib/url";
+import { MAX_VERIFICATION_LEVEL, verificationLevelLabel } from "@/lib/verification-level";
 import {
   Award, Bell,
   CalendarDays, Camera, ChevronRight,
   Droplets, Heart,
   Lock,
+  LogIn,
   MessageCircle,
   Plus, Search,
   Shield,
@@ -52,12 +54,28 @@ type UrgentRequest = {
   blood_type: string;
   hospital: string;
   city: string;
+  city_name?: string;
   urgency: string;
+  bags?: number;
+  fulfilled_bags?: number;
+  created_at?: string;
   notes?: string;
 };
 
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (Number.isNaN(diff)) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Baru saja";
+  if (mins < 60) return `${mins} menit lalu`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  return `${Math.floor(hours / 24)} hari lalu`;
+}
+
 export default function ProfilePage() {
-  const { user, refreshUser, isUnverified } = useAuth();
+  const { user, loading: authLoading, refreshUser, isUnverified } = useAuth();
   const wilayah = useWilayah();
   const [badges, setBadges] = useState<BadgeData[]>([]);
   const [status, setStatus] = useState<DonorStatus | null>(null);
@@ -65,6 +83,7 @@ export default function ProfilePage() {
   const [stats, setStats] = useState({ total_donations: user?.total_donations || 0, total_points: user?.total_points || 0 });
   const [trustScore, setTrustScore] = useState<number | null>(user?.trust_score ?? null);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
@@ -105,6 +124,7 @@ export default function ProfilePage() {
   useEffect(() => { wilayah.loadDistricts(form.city); }, [form.city, wilayah.loadDistricts]);
 
   const updateProfile = async () => {
+    setSaving(true);
     try {
       let avatarUrl = "";
       if (avatarFile) avatarUrl = await api.upload("/upload", avatarFile);
@@ -126,6 +146,8 @@ export default function ProfilePage() {
       refreshUser();
     } catch {
       toast.error("Gagal memperbarui profil");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -140,7 +162,23 @@ export default function ProfilePage() {
     }
   };
 
-  if (!user) return <div className="mx-auto max-w-7xl px-5 py-6"><p className="text-muted-foreground">Memuat...</p></div>;
+  if (authLoading) return <div className="mx-auto max-w-7xl px-5 py-6"><p className="text-muted-foreground">Memuat...</p></div>;
+
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-md items-center justify-center px-4">
+        <GlassCard className="w-full py-10 text-center">
+          <LogIn className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h2 className="font-heading text-lg font-bold text-foreground">Masuk untuk Melihat Profil</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Silakan masuk atau daftar akun untuk mengelola profil donor Anda.</p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Link href="/login" className={buttonVariants({ className: "w-full" })}>Masuk</Link>
+            <Link href="/register" className={buttonVariants({ variant: "outline", className: "w-full" })}>Daftar Akun</Link>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
 
   const changePassword = async () => {
     if (pwForm.new_password.length < 6) { toast.error("Kata sandi minimal 6 karakter"); return; }
@@ -160,6 +198,8 @@ export default function ProfilePage() {
   const totalDonations = stats.total_donations;
   const liters = (totalDonations * 0.45).toFixed(2);
   const topBadge = badges[0]?.badge?.name || "Pemula";
+  const avatarBadge = badges.length > 0 ? { label: topBadge } : undefined;
+  const isAvailable = status?.availability_status === "available";
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-6">
@@ -169,7 +209,7 @@ export default function ProfilePage() {
             <div>
               <p className="text-sm text-muted-foreground">Halo,</p>
               <h1 className="font-heading text-xl font-bold text-foreground">{user.full_name}</h1>
-              <p className="text-xs text-[#94a3b8]">
+              <p className="text-xs text-muted-foreground">
                 Terima kasih telah menjadi bagian dari pahlawan hari ini.
                 {formatDate(status?.last_donation_date) && ` Anda terakhir donor ${formatDate(status?.last_donation_date)}.`}
               </p>
@@ -180,10 +220,10 @@ export default function ProfilePage() {
               )}
             </div>
             <div className="hidden items-center gap-3 md:flex">
-              <Bell className="h-5 w-5 text-[#94a3b8]" />
-              <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="md" badge={{ label: topBadge, level: "gold" }} />
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="md" badge={avatarBadge} />
             </div>
-            <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="lg" badge={{ label: topBadge, level: "gold" }} className="md:hidden" />
+            <AvatarWithBadge name={user.full_name} avatarUrl={user.avatar_url} size="lg" badge={avatarBadge} className="md:hidden" />
           </div>
 
           {isUnverified && (
@@ -207,21 +247,26 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-medium text-foreground">Status Ketersediaan</p>
                 <p className="text-xs text-muted-foreground">
-                  {status?.availability_status === "available" ? "Siap Donor" : "Sedang sibuk"}
+                  {!status ? "—" : isAvailable ? "Siap Donor" : "Sedang sibuk"}
                 </p>
               </div>
             </div>
             <button
+              type="button"
+              role="switch"
+              aria-checked={isAvailable}
+              aria-label="Siap donor"
+              disabled={!status}
               onClick={() => updateStatus(
                 "manual",
-                status?.availability_status === "available" ? "temporarily_unavailable" : "available"
+                isAvailable ? "temporarily_unavailable" : "available"
               )}
-              className={`relative h-7 w-12 rounded-full transition-colors ${
-                status?.availability_status === "available" ? "bg-emerald-500 shadow-lg shadow-emerald-200" : "bg-gray-300"
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                isAvailable ? "bg-emerald-500 shadow-lg shadow-emerald-200" : "bg-gray-300"
               }`}
             >
               <div className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                status?.availability_status === "available" ? "translate-x-5.5" : "translate-x-0.5"
+                isAvailable ? "translate-x-5.5" : "translate-x-0.5"
               }`} />
             </button>
           </GlassCard>
@@ -230,16 +275,13 @@ export default function ProfilePage() {
             <Shield className="h-5 w-5 text-blue-600" />
             <div className="flex-1">
               <p className="text-xs font-medium text-foreground">
-                Verifikasi Level {user.verification_level || 0} / 3
+                Verifikasi Level {user.verification_level || 0} / {MAX_VERIFICATION_LEVEL}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                {!user.verification_level ? "Tingkatkan kepercayaan" :
-                 user.verification_level === 1 ? "Laporan Mandiri" :
-                 user.verification_level === 2 ? "Terverifikasi Komunitas" :
-                 "Terverifikasi PMI"}
+                {!user.verification_level ? "Tingkatkan kepercayaan" : verificationLevelLabel(user.verification_level)}
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 text-[#94a3b8]" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Link>
 
           <button
@@ -268,24 +310,24 @@ export default function ProfilePage() {
             </div>
           </button>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <GlassCard className="text-center">
               <Droplets className="mx-auto h-5 w-5 text-red-600" />
               <p className="mt-1 font-heading text-lg font-bold text-foreground">{totalDonations}</p>
               <p className="text-[10px] text-muted-foreground">Total Donor</p>
-              <p className="text-[10px] text-[#94a3b8]">{liters} L</p>
+              <p className="text-[10px] text-muted-foreground">{liters} L</p>
             </GlassCard>
             <GlassCard className="text-center">
               <Award className="mx-auto h-5 w-5 text-amber-500" />
               <p className="mt-1 font-heading text-lg font-bold text-foreground">{topBadge}</p>
               <p className="text-[10px] text-muted-foreground">Lencana</p>
-              <p className="text-[10px] text-[#94a3b8]">Peringkat Emas</p>
+              <p className="text-[10px] text-muted-foreground">{badges.length > 0 ? "Lencana tertinggi" : "Belum ada lencana"}</p>
             </GlassCard>
             <GlassCard className="text-center">
               <Trophy className="mx-auto h-5 w-5 text-red-600" />
               <p className="mt-1 font-heading text-lg font-bold text-foreground">{stats.total_points}</p>
               <p className="text-[10px] text-muted-foreground">Poin</p>
-              <p className="text-[10px] text-[#94a3b8]">{badges.length} lencana diraih</p>
+              <p className="text-[10px] text-muted-foreground">{badges.length} lencana diraih</p>
             </GlassCard>
           </div>
 
@@ -318,7 +360,9 @@ export default function ProfilePage() {
                         ? `Siap donor setelah ${getRecoveryEndDate(status?.last_donation_date) || "masa tunggu"}`
                         : status?.eligibility_status === "not_eligible"
                           ? "Tidak memenuhi syarat donor"
-                          : "Menunggu izin dokter",
+                          : status?.eligibility_status === "needs_clearance"
+                            ? "Menunggu izin dokter"
+                            : "—",
                     status: status?.eligibility_status === "eligible" ? "current" : "upcoming",
                   },
                 ]}
@@ -330,22 +374,22 @@ export default function ProfilePage() {
             <Link href="/donor-history" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[100px]">
               <Plus className="h-4 w-4 text-red-600 shrink-0" />
               <span className="text-xs font-medium text-foreground">Riwayat</span>
-              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
             </Link>
             <Link href="/search" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
               <Search className="h-4 w-4 text-red-600 shrink-0" />
               <span className="text-xs font-medium text-foreground">Cari</span>
-              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
             </Link>
             <Link href="/events" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
               <CalendarDays className="h-4 w-4 text-red-600 shrink-0" />
               <span className="text-xs font-medium text-foreground">Event</span>
-              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
             </Link>
             <Link href="/passport" className="flex items-center gap-2 rounded-xl bg-white/50 p-2.5 transition-colors hover:bg-white/80 flex-1 min-w-[80px]">
               <Award className="h-4 w-4 text-amber-500 shrink-0" />
               <span className="text-xs font-medium text-foreground">Paspor</span>
-              <ChevronRight className="h-3 w-3 text-[#94a3b8] ml-auto shrink-0" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
             </Link>
           </div>
         </div>
@@ -361,16 +405,18 @@ export default function ProfilePage() {
                   <GlassCard key={req.id} elevated>
                     <div className="mb-2 flex items-center justify-between">
                       <UrgencyBadge level={req.urgency} />
-                      <span className="text-[10px] text-[#94a3b8]">jadwal</span>
+                      {req.created_at && <span className="text-[10px] text-muted-foreground">{timeAgo(req.created_at)}</span>}
                     </div>
                     <div className="flex items-start gap-3">
                       <BloodTypeBadge type={req.blood_type} size="lg" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground">{req.hospital}</p>
-                        <p className="text-xs text-muted-foreground">{req.city}</p>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-[#94a3b8]">
-                          <span>3 Kantong Darah</span>
-                        </div>
+                        <p className="text-xs text-muted-foreground">{req.city_name || req.city}</p>
+                        {typeof req.bags === "number" && (
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Butuh {Math.max(req.bags - (req.fulfilled_bags ?? 0), 0)} Kantong Darah</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="mt-3">
@@ -416,13 +462,15 @@ export default function ProfilePage() {
                     ? [{ text: `Masa tunggu selesai ${getRecoveryEndDate(status?.last_donation_date) || "—"}`, time: "Status" }]
                     : status?.eligibility_status === "not_eligible"
                       ? [{ text: "Tidak memenuhi syarat donor", time: "Status" }]
-                      : [{ text: "Menunggu izin dokter", time: "Status" }],
+                      : status?.eligibility_status === "needs_clearance"
+                        ? [{ text: "Menunggu izin dokter", time: "Status" }]
+                        : [],
               ).map((a, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className="mt-0.5 h-2 w-2 rounded-full bg-emerald-400" />
                   <div>
                     <p className="text-sm text-foreground">{a.text}</p>
-                    <p className="text-xs text-[#94a3b8]">{a.time}</p>
+                    <p className="text-xs text-muted-foreground">{a.time}</p>
                   </div>
                 </div>
               ))}
@@ -450,13 +498,13 @@ export default function ProfilePage() {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Nama</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label>WhatsApp</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
-                  <div className="space-y-1"><Label>Username</Label><Input value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} /></div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><Label htmlFor="profile-name">Nama</Label><Input id="profile-name" value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
+                  <div className="space-y-1"><Label htmlFor="profile-phone">WhatsApp</Label><Input id="profile-phone" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
+                  <div className="space-y-1"><Label htmlFor="profile-username">Username</Label><Input id="profile-username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} /></div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1"><Label>Provinsi</Label>
                     <Select value={form.province || "none"} onValueChange={v => { const val = (v === "none" ? "" : v) || ""; setForm(p => ({ ...p, province: val, city: p.province === val ? p.city : "", district: p.province === val ? p.district : "" })); }}>
                       <SelectTrigger><SelectValue placeholder="Pilih provinsi" /></SelectTrigger>
@@ -481,10 +529,10 @@ export default function ProfilePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1"><Label>Tanggal Lahir</Label><Input type="date" value={form.date_of_birth} onChange={e => setForm(p => ({ ...p, date_of_birth: e.target.value }))} /></div>
+                  <div className="space-y-1"><Label htmlFor="profile-dob">Tanggal Lahir</Label><Input id="profile-dob" type="date" value={form.date_of_birth} onChange={e => setForm(p => ({ ...p, date_of_birth: e.target.value }))} /></div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="space-y-1">
                     <Label>Golongan Darah</Label>
                     <Select value={form.blood_type} onValueChange={v => setForm(p => ({ ...p, blood_type: v ?? "" }))}>
@@ -509,7 +557,7 @@ export default function ProfilePage() {
                     </Select>
                   </div>
                 </div>
-                <Button onClick={updateProfile}>Simpan</Button>
+                <Button onClick={updateProfile} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
                 <div className="mt-4 flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Bersedia dihubungi</p>
@@ -545,8 +593,8 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
                   <div className="flex gap-2 items-center">
-                    <StatusBadge status={status?.eligibility_status || "eligible"} dot />
-                    <span className="text-xs text-[#94a3b8]">Prioritas {status?.search_priority || 3}</span>
+                    <StatusBadge status={status?.eligibility_status || ""} dot={Boolean(status?.eligibility_status)} />
+                    <span className="text-xs text-muted-foreground">Prioritas {status?.search_priority ?? "—"}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -570,7 +618,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  {user.username && <Link href={`/u/${user.username}`}><Button variant="outline" size="sm">Profil Publik</Button></Link>}
+                  {user.username && <Link href={`/u/${user.username}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Profil Publik</Link>}
                 </div>
               </div>
             )}
@@ -584,7 +632,7 @@ export default function ProfilePage() {
                   {showChangePassword ? "Batal" : "Ubah Kata Sandi"}
                 </button>
                 {showChangePassword && (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Kata Sandi Saat Ini</Label>
                       <Input type="password" placeholder="••••••••" className="text-sm" value={pwForm.current_password} onChange={e => setPwForm(p => ({ ...p, current_password: e.target.value }))} />

@@ -5,9 +5,12 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import { GlassCard } from "@/components/glass-card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { StatusBadge } from "@/components/status-badge";
+import { verificationLevelLabel, verifierRoleLabel } from "@/lib/verification-level";
+import Link from "next/link";
 import { toast } from "sonner";
-import { ShieldCheck, Shield, ShieldHalf, Clock, CheckCircle, XCircle, ChevronRight, Send } from "lucide-react";
+import { ShieldCheck, Shield, ShieldHalf, Clock, CheckCircle, XCircle, ChevronRight, Send, LogIn } from "lucide-react";
 
 type VerificationEntry = {
   id: string;
@@ -26,22 +29,24 @@ const LEVEL_INFO = {
 };
 
 export default function VerificationPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [currentLevel, setCurrentLevel] = useState(0);
   const [maxLevel] = useState(3);
   const [verifications, setVerifications] = useState<VerificationEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ verifier_role: "community", notes: "" });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
+    setLoadError(false);
     try {
       const data = await api.get<{ current_level: number; max_level: number; verifications: VerificationEntry[] }>("/donor-verification");
       setCurrentLevel(data.current_level);
       setVerifications(data.verifications || []);
     } catch {
-      toast.error("Gagal memuat data verifikasi");
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -69,7 +74,37 @@ export default function VerificationPage() {
     }
   };
 
+  if (authLoading) return <div className="mx-auto max-w-lg px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
+
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-md items-center justify-center px-4">
+        <GlassCard className="w-full py-10 text-center">
+          <LogIn className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h2 className="font-heading text-lg font-bold text-foreground">Masuk untuk Verifikasi Donor</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Silakan masuk untuk melihat dan meningkatkan level verifikasi Anda.</p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Link href="/login" className={buttonVariants({ className: "w-full" })}>Masuk</Link>
+            <Link href="/register" className={buttonVariants({ variant: "outline", className: "w-full" })}>Daftar Akun</Link>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
   if (loading) return <div className="mx-auto max-w-lg px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-8">
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Data verifikasi belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Periksa koneksi Anda lalu coba lagi.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => { setLoading(true); fetchData(); }}>Coba Lagi</Button>
+        </GlassCard>
+      </div>
+    );
+  }
 
   const nextLevel = currentLevel < maxLevel ? currentLevel + 1 : null;
   const nextInfo = nextLevel ? LEVEL_INFO[nextLevel as keyof typeof LEVEL_INFO] : null;
@@ -84,7 +119,7 @@ export default function VerificationPage() {
 
       <div className="mt-6 space-y-4">
         <GlassCard>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
                 currentLevel >= 3 ? "bg-emerald-100" : currentLevel >= 2 ? "bg-amber-100" : currentLevel >= 1 ? "bg-blue-100" : "bg-gray-100"
@@ -92,17 +127,14 @@ export default function VerificationPage() {
                 {currentLevel >= 3 ? <ShieldCheck className="h-6 w-6 text-emerald-600" /> :
                  currentLevel >= 2 ? <ShieldHalf className="h-6 w-6 text-amber-600" /> :
                  currentLevel >= 1 ? <Shield className="h-6 w-6 text-blue-600" /> :
-                 <Shield className="h-6 w-6 text-gray-400" />}
+                 <Shield className="h-6 w-6 text-muted-foreground" />}
               </div>
               <div>
                 <p className="font-heading text-base font-bold text-foreground">
                   Level {currentLevel} / {maxLevel}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {currentLevel === 0 ? "Belum terverifikasi" :
-                   currentLevel === 1 ? "Laporan Mandiri" :
-                   currentLevel === 2 ? "Terverifikasi Komunitas" :
-                   "Terverifikasi PMI"}
+                  {verificationLevelLabel(currentLevel)}
                 </p>
               </div>
             </div>
@@ -150,24 +182,26 @@ export default function VerificationPage() {
               <p className="text-xs text-muted-foreground">{nextInfo.desc}</p>
               <div className="mt-3 space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-foreground">Verifikator</label>
+                  <label htmlFor="verif-role" className="text-xs font-medium text-foreground">Verifikator</label>
                   <select
+                    id="verif-role"
                     value={form.verifier_role}
                     onChange={e => setForm(p => ({ ...p, verifier_role: e.target.value }))}
-                    className="mt-1 flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                    className="mt-1 flex h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
                   >
                     <option value="community">Komunitas</option>
                     <option value="pmi">PMI</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-foreground">Catatan</label>
+                  <label htmlFor="verif-notes" className="text-xs font-medium text-foreground">Catatan</label>
                   <textarea
+                    id="verif-notes"
                     value={form.notes}
                     onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
                     placeholder="Informasi tambahan untuk verifikator"
                     rows={3}
-                    className="mt-1 flex w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                    className="mt-1 flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
                   />
                 </div>
                 <Button onClick={submitVerification} disabled={submitting} className="w-full">
@@ -194,18 +228,12 @@ export default function VerificationPage() {
                        v.status === "rejected" ? <XCircle className="h-4 w-4 text-red-600" /> :
                        <Clock className="h-4 w-4 text-amber-600" />}
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">{info?.label || `Level ${v.level}`}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{v.verifier_role} • {formatDate(v.created_at)}</p>
-                      {v.notes && <p className="mt-0.5 text-xs text-[#94a3b8]">{v.notes}</p>}
+                      <p className="text-xs text-muted-foreground">{verifierRoleLabel(v.verifier_role)} • {formatDate(v.created_at)}</p>
+                      {v.notes && <p className="mt-0.5 break-words text-xs text-muted-foreground">{v.notes}</p>}
                     </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                      v.status === "approved" ? "bg-emerald-100 text-emerald-700" :
-                      v.status === "rejected" ? "bg-red-100 text-red-700" :
-                      "bg-amber-100 text-amber-700"
-                    }`}>
-                      {v.status === "approved" ? "Disetujui" : v.status === "rejected" ? "Ditolak" : "Menunggu"}
-                    </span>
+                    <StatusBadge status={v.status} className="shrink-0" />
                   </div>
                 );
               })}

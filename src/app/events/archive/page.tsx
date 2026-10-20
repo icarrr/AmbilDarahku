@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CalendarDays, MapPin, Clock, ChevronLeft, ChevronRight, Archive } from "lucide-react";
 
 type Event = {
@@ -24,6 +25,8 @@ export default function ArchivePage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [cityFilter, setCityFilter] = useState("");
   const [debouncedCity, setDebouncedCity] = useState("");
   const fetchSeq = useRef(0);
@@ -36,6 +39,7 @@ export default function ArchivePage() {
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     const seq = ++fetchSeq.current;
     const params = new URLSearchParams({ page: String(page), limit: "20" });
     if (debouncedCity) params.set("city", debouncedCity);
@@ -50,11 +54,12 @@ export default function ArchivePage() {
         if (seq !== fetchSeq.current) return;
         setEvents([]);
         setTotalPages(1);
+        setError(true);
       })
       .finally(() => {
         if (seq === fetchSeq.current) setLoading(false);
       });
-  }, [page, debouncedCity]);
+  }, [page, debouncedCity, retryCount]);
 
   const FALLBACK_EVENT_PATH = "events/Gemini_Generated_Image_295p3i295p3i295p.jpg";
 
@@ -81,21 +86,19 @@ export default function ArchivePage() {
             Riwayat event donor darah yang telah berlalu.
           </p>
         </div>
-        <Link
-          href="/events"
-          className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700"
-        >
+        <Link href="/events" className={buttonVariants({ size: "sm", className: "px-3" })}>
           Event Aktif
         </Link>
       </div>
 
       <div className="mb-4">
         <input
-          type="text"
+          type="search"
+          aria-label="Filter berdasarkan kota"
           placeholder="Filter berdasarkan kota..."
           value={cityFilter}
           onChange={e => { setCityFilter(e.target.value); setPage(1); }}
-          className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-red-400 focus:outline-none"
+          className="w-full rounded-lg border border-input bg-transparent px-4 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
 
@@ -103,13 +106,21 @@ export default function ArchivePage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
             <GlassCard key={i} className="animate-pulse">
-              <div className="h-20 rounded-lg bg-gray-200" />
+              <div className="h-20 rounded-lg bg-muted" />
             </GlassCard>
           ))}
         </div>
+      ) : error ? (
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
+          <Button variant="outline" size="sm" className="mt-4 px-3" onClick={() => setRetryCount(c => c + 1)}>
+            Coba Lagi
+          </Button>
+        </GlassCard>
       ) : events.length === 0 ? (
         <GlassCard className="py-12 text-center">
-          <Archive className="mx-auto h-12 w-12 text-gray-200" />
+          <Archive className="mx-auto h-12 w-12 text-muted-foreground/40" />
           <p className="mt-2 font-medium text-foreground">Belum ada event yang diarsipkan</p>
         </GlassCard>
       ) : (
@@ -127,16 +138,16 @@ export default function ArchivePage() {
                 tabIndex={imgUrl ? 0 : undefined}
               >
                 <div className="flex items-start gap-4">
-                  <div className="flex flex-col items-center justify-center rounded-lg bg-gray-100 px-3 py-2 text-center min-w-[56px]">
-                    <span className="text-xs font-bold text-gray-500">
+                  <div className="flex flex-col items-center justify-center rounded-lg bg-muted px-3 py-2 text-center min-w-[56px] text-muted-foreground">
+                    <span className="text-xs font-bold">
                       {new Date(event.event_date).toLocaleDateString("id-ID", { day: "numeric" })}
                     </span>
-                    <span className="text-sm font-bold text-gray-500">
+                    <span className="text-sm font-bold">
                       {new Date(event.event_date).toLocaleDateString("id-ID", { month: "short" }).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground">{event.title}</h3>
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-2 break-words">{event.title}</h3>
                     <div className="mt-1 space-y-1">
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3 flex-shrink-0" />
@@ -150,7 +161,7 @@ export default function ArchivePage() {
                   </div>
                 </div>
                 {event.description && (
-                  <p className="mt-3 text-xs text-[#94a3b8] line-clamp-2">{event.description}</p>
+                  <p className="mt-3 text-xs text-muted-foreground line-clamp-2">{event.description}</p>
                 )}
               </GlassCard>
             );
@@ -159,23 +170,27 @@ export default function ArchivePage() {
 
           {totalPages > 1 && (
             <div className="mt-6 flex items-center justify-center gap-4">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-3"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
               >
                 <ChevronLeft className="h-3 w-3" /> Sebelumnya
-              </button>
+              </Button>
               <span className="text-xs text-muted-foreground">
                 Hal {page} dari {totalPages}
               </span>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-3"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
               >
                 Berikutnya <ChevronRight className="h-3 w-3" />
-              </button>
+              </Button>
             </div>
           )}
         </>

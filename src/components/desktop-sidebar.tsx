@@ -4,24 +4,36 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
-import {
-  Droplets, LayoutDashboard, History, CalendarDays, Trophy, Search,
-  TriangleAlert, Heart, LogOut, User,
-} from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { Droplets, Heart, LogOut, Plus } from "lucide-react";
+import { mainNav, memberNav, adminNavItem, isNavActive, type NavItem } from "@/components/nav-config";
 
-const mainLinks = [
-  { href: "/", label: "Beranda", icon: LayoutDashboard },
-  { href: "/search", label: "Cari Donor", icon: Search },
-  { href: "/events", label: "Event Donor", icon: CalendarDays },
-  { href: "/requests", label: "Permintaan Darah", icon: TriangleAlert },
-];
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground first:pt-0">
+      {children}
+    </p>
+  );
+}
 
-const menuLinks = [
-  { href: "/profile", label: "Profil", icon: User },
-  { href: "/donor-history", label: "Riwayat Donor", icon: History },
-  { href: "/leaderboard", label: "Peringkat", icon: Trophy },
-];
+function SideLink({ href, label, icon: Icon, pathname }: NavItem & { pathname: string }) {
+  const isActive = isNavActive(pathname, href);
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        isActive
+          ? "bg-primary/10 text-primary border-l-[4px] border-primary rounded-r-lg shadow-[inset_0_0_8px_-2px_rgba(220,38,38,0.15)]"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </Link>
+  );
+}
 
 export function DesktopSidebar() {
   const pathname = usePathname();
@@ -29,87 +41,37 @@ export function DesktopSidebar() {
 
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 md:z-40">
-      <div className="glass-strong flex flex-1 flex-col border-r border-gray-100">
-        <div className="flex h-16 items-center gap-2 border-b border-gray-100 px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600">
+      <div className="glass-strong flex min-h-0 flex-1 flex-col border-r border-border">
+        <Link href="/" className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-6">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Droplets className="h-4 w-4 text-white" />
           </div>
           <span className="font-heading text-base font-bold text-foreground">AmbilDarahku</span>
-        </div>
+        </Link>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
-          <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
-            Utama
-          </p>
-          {mainLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-red-50 text-red-600 border-l-[4px] border-red-600 rounded-r-lg shadow-[inset_0_0_8px_-2px_rgba(220,38,38,0.15)]"
-                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {link.label}
-              </Link>
-            );
-          })}
+        <nav aria-label="Navigasi utama" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          <SectionLabel>Utama</SectionLabel>
+          {mainNav.map((item) => <SideLink key={item.href} {...item} pathname={pathname} />)}
 
           {user && (
             <>
-              <div className="pt-4">
-                <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
-                  Menu
-                </p>
-              </div>
-              {menuLinks.map((link) => {
-                const Icon = link.icon;
-                const isActive = pathname === link.href;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-red-50 text-red-600 border-l-[4px] border-red-600 rounded-r-lg shadow-[inset_0_0_8px_-2px_rgba(220,38,38,0.15)]"
-                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {link.label}
-                  </Link>
-                );
-              })}
-
+              {memberNav.map((group) => (
+                <div key={group.title} className="space-y-1">
+                  <SectionLabel>{group.title}</SectionLabel>
+                  {group.items.map((item) => <SideLink key={item.href} {...item} pathname={pathname} />)}
+                </div>
+              ))}
               {isAdmin && (
-                <Link
-                  href="/admin"
-                  aria-current={pathname === "/admin" ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    pathname === "/admin"
-                      ? "bg-red-50 text-red-600"
-                      : "text-muted-foreground hover:bg-gray-50 hover:text-foreground",
-                  )}
-                >
-                  <Trophy className="h-4 w-4" />
-                  Admin
-                </Link>
+                <div className="space-y-1">
+                  <SectionLabel>Admin</SectionLabel>
+                  <SideLink {...adminNavItem} label="Panel Admin" pathname={pathname} />
+                </div>
               )}
             </>
           )}
         </nav>
 
-        <div className="border-t border-gray-100 px-3 py-4">
+        <div className="shrink-0 border-t border-border px-3 py-4">
           {user ? (
             <>
               <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 p-4 text-white">
@@ -117,15 +79,16 @@ export function DesktopSidebar() {
                 <p className="text-sm font-semibold">Jadilah Pahlawan</p>
                 <p className="mt-0.5 text-xs text-red-100">Setetes darah Anda sangat berarti.</p>
                 <Link
-                  href="/donor-history"
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-xs font-medium backdrop-blur-sm hover:bg-white/30"
+                  href="/requests/new"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-xs font-medium backdrop-blur-sm hover:bg-white/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  Donor Sekarang
+                  <Plus className="h-3.5 w-3.5" />
+                  Buat Permintaan Darah
                 </Link>
               </div>
               <button
                 onClick={logout}
-                className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-gray-50 hover:text-foreground"
+                className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               >
                 <LogOut className="h-4 w-4" />
                 Keluar
@@ -133,15 +96,11 @@ export function DesktopSidebar() {
             </>
           ) : (
             <div className="space-y-2">
-              <Link href="/login">
-                <Button variant="outline" size="sm" className="w-full">
-                  Masuk
-                </Button>
+              <Link href="/login" className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}>
+                Masuk
               </Link>
-              <Link href="/register">
-                <Button size="sm" className="w-full">
-                  Daftar
-                </Button>
+              <Link href="/register" className={buttonVariants({ size: "sm", className: "w-full" })}>
+                Daftar
               </Link>
             </div>
           )}

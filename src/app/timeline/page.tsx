@@ -5,6 +5,8 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import { GlassCard } from "@/components/glass-card";
+import { StatusBadge } from "@/components/status-badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { Droplets, FileText, Award, CalendarDays, ChevronRight } from "lucide-react";
 
@@ -28,7 +30,7 @@ const ENTRY_TYPES = ["all", "donation", "claim", "badge"] as const;
 type FilterType = (typeof ENTRY_TYPES)[number];
 
 export default function TimelinePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -36,6 +38,7 @@ export default function TimelinePage() {
   const [filter, setFilter] = useState<FilterType>("all");
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
       setLoading(false);
       return;
@@ -45,11 +48,11 @@ export default function TimelinePage() {
       .then(d => setEntries(d.entries || []))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [user, retryCount]);
+  }, [user, authLoading, retryCount]);
 
   const filtered = filter === "all" ? entries : entries.filter(e => e.type === filter);
 
-  if (loading) return <div className="mx-auto max-w-2xl px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
+  if (authLoading || loading) return <div className="mx-auto max-w-2xl px-4 py-8 text-center text-muted-foreground">Memuat...</div>;
 
   if (!user) {
     return (
@@ -58,7 +61,7 @@ export default function TimelinePage() {
           <Droplets className="mx-auto mb-4 h-10 w-10 text-gray-300" />
           <h2 className="font-heading text-lg font-bold text-foreground">Masuk untuk Melihat Linimasa</h2>
           <p className="mt-1 text-sm text-muted-foreground">Silakan masuk untuk melihat riwayat aktivitas donor Anda.</p>
-          <Link href="/login" className="mt-5 inline-flex rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700">
+          <Link href="/login" className={buttonVariants({ className: "mt-5 px-6" })}>
             Masuk
           </Link>
         </GlassCard>
@@ -72,12 +75,9 @@ export default function TimelinePage() {
         <GlassCard className="py-10 text-center">
           <p className="text-sm font-medium text-foreground">Data belum dapat dimuat.</p>
           <p className="mt-1 text-xs text-muted-foreground">Silakan coba lagi.</p>
-          <button
-            onClick={() => setRetryCount(c => c + 1)}
-            className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-foreground hover:bg-gray-50"
-          >
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => { setLoading(true); setRetryCount(c => c + 1); }}>
             Coba Lagi
-          </button>
+          </Button>
         </GlassCard>
       </div>
     );
@@ -126,21 +126,16 @@ export default function TimelinePage() {
                     <div>
                       <p className="text-sm font-medium text-foreground">{entry.title}</p>
                       <p className="text-xs text-muted-foreground">{entry.description}</p>
-                      <p className="mt-0.5 text-[11px] text-[#94a3b8]">{formatDate(entry.date)}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{formatDate(entry.date)}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        entry.status === "verified" || entry.status === "approved" || entry.status === "awarded"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : entry.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-red-100 text-red-700"
-                      }`}>
-                        {entry.status === "verified" || entry.status === "approved" || entry.status === "awarded" ? "Selesai" :
-                         entry.status === "pending" ? "Menunggu" : "Ditolak"}
-                      </span>
+                      <StatusBadge status={entry.status} />
                       {entry.link && (
-                        <Link href={entry.link} className="rounded-lg p-1 text-[#94a3b8] hover:bg-gray-100 hover:text-foreground">
+                        <Link
+                          href={entry.link}
+                          aria-label={`Lihat detail ${entry.title}`}
+                          className={buttonVariants({ variant: "ghost", size: "icon-sm", className: "text-muted-foreground" })}
+                        >
                           <ChevronRight className="h-4 w-4" />
                         </Link>
                       )}

@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { formatDate, getRecoveryEndDate } from "@/lib/utils";
 import { GlassCard } from "@/components/glass-card";
 import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Camera, CheckCircle, Droplets, ImageUp, Loader2, Plus, X, ScrollText, Pencil, Trash2 } from "lucide-react";
+import { Camera, CheckCircle, Droplets, ImageUp, Loader2, LogIn, Plus, X, ScrollText, Pencil, Trash2 } from "lucide-react";
 import { getFileUrl } from "@/lib/file-url";
 import { SkeletonCard } from "@/components/ui/skeleton";
+import { verifierRoleLabel } from "@/lib/verification-level";
 
 type History = {
   id: string;
@@ -27,8 +31,10 @@ type History = {
 };
 
 export default function DonorHistoryPage() {
+  const { user, loading: authLoading } = useAuth();
   const [histories, setHistories] = useState<History[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ donation_date: "", location: "", institution: "", notes: "", proof_photo: "" });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -37,13 +43,31 @@ export default function DonorHistoryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  // One hidden file input shared by every pending item; editTargetId records which
+  // history the picked photo belongs to.
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const editTargetIdRef = useRef<string | null>(null);
   const [editingHistory, setEditingHistory] = useState<History | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<History | null>(null);
+
+  // Async-only state updates so it can run from an effect; retry resets state first.
+  const loadHistories = useCallback(() => {
+    api.get<{ histories: History[] }>("/donor-history")
+      .then(d => setHistories(d.histories || []))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    api.get<{ histories: History[] }>("/donor-history").then(d => setHistories(d.histories || [])).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    if (user) loadHistories();
+  }, [user, loadHistories]);
+
+  // "Donor selanjutnya" only makes sense for the most recent donation
+  const latestId = histories.reduce<History | null>(
+    (latest, h) => (!latest || new Date(h.donation_date) > new Date(latest.donation_date) ? h : latest),
+    null,
+  )?.id;
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -105,7 +129,6 @@ export default function DonorHistoryPage() {
   };
 
   const handleDelete = async (h: History) => {
-    if (!confirm(`Hapus riwayat donor ${formatDate(h.donation_date)}?`)) return;
     setDeletingId(h.id);
     try {
       await api.delete(`/donor-history/${h.id}`);
@@ -116,6 +139,7 @@ export default function DonorHistoryPage() {
       toast.error("Gagal menghapus riwayat");
     } finally {
       setDeletingId(null);
+      setDeleteTarget(null);
     }
   };
 
@@ -135,9 +159,29 @@ export default function DonorHistoryPage() {
     }
   };
 
+  if (authLoading) {
+    return <div className="mx-auto max-w-3xl px-5 py-6"><p className="text-muted-foreground">Memuat...</p></div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-md items-center justify-center px-4">
+        <GlassCard className="w-full py-10 text-center">
+          <LogIn className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h2 className="font-heading text-lg font-bold text-foreground">Masuk untuk Melihat Riwayat Donor</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Silakan masuk untuk mencatat dan memantau riwayat donor Anda.</p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Link href="/login" className={buttonVariants({ className: "w-full" })}>Masuk</Link>
+            <Link href="/register" className={buttonVariants({ variant: "outline", className: "w-full" })}>Daftar Akun</Link>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-5 py-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="font-heading text-2xl font-bold text-foreground">Riwayat Donor</h1>
           <p className="text-sm text-muted-foreground">Catat dan pantau riwayat donor darah Anda</p>
@@ -211,7 +255,7 @@ onChange={handlePhoto}
                 >
                   <Camera className="h-8 w-8 text-gray-300" />
                   <span>Ambil foto atau pilih dari galeri</span>
-                  <span className="text-xs text-[#94a3b8]">Foto selfie saat donor sebagai bukti verifikasi</span>
+                  <span className="text-xs text-muted-foreground">Foto selfie saat donor sebagai bukti verifikasi</span>
                 </button>
               )}
               <p className="text-xs text-amber-600">
@@ -231,7 +275,15 @@ onChange={handlePhoto}
         </div>
       )}
 
-      {!loading && histories.length === 0 && !showForm && (
+      {!loading && loadError && (
+        <GlassCard className="py-10 text-center">
+          <p className="text-sm font-medium text-foreground">Riwayat donor belum dapat dimuat.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Periksa koneksi Anda lalu coba lagi.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => { setLoading(true); setLoadError(false); loadHistories(); }}>Coba Lagi</Button>
+        </GlassCard>
+      )}
+
+      {!loading && !loadError && histories.length === 0 && !showForm && (
         <div className="py-16 text-center animate-fade-in">
           <ScrollText className="mx-auto h-12 w-12 text-gray-200" />
           <p className="mt-3 font-medium text-foreground">Belum ada riwayat donor</p>
@@ -255,32 +307,36 @@ onChange={handlePhoto}
                       <div>
                         <p className="text-sm font-semibold text-foreground">{formatDate(h.donation_date)}</p>
                         <p className="text-xs text-muted-foreground">{h.institution}{h.location ? ` • ${h.location}` : ""}</p>
-                        <p className="mt-0.5 text-xs text-[#94a3b8]">{h.bags} kantong{h.notes ? ` • ${h.notes}` : ""}</p>
-                        <p className="mt-1 text-[11px] font-medium text-amber-600">
-                          Donor selanjutnya {getRecoveryEndDate(h.donation_date)}
-                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{h.bags} kantong{h.notes ? ` • ${h.notes}` : ""}</p>
+                        {h.id === latestId && getRecoveryEndDate(h.donation_date) && (
+                          <p className="mt-1 text-[11px] font-medium text-amber-600">
+                            Donor selanjutnya {getRecoveryEndDate(h.donation_date)}
+                          </p>
+                        )}
                         {h.verification_level && h.verification_level !== "self" && (
                           <span className="mt-1 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                            Verifikasi: {h.verification_level}
+                            Verifikasi: {verifierRoleLabel(h.verification_level)}
                             {h.verification_source && ` • ${h.verification_source}`}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
                           onClick={() => openEditForm(h)}
-                          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                          className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                           title="Edit"
+                          aria-label={`Edit riwayat donor ${formatDate(h.donation_date)}`}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(h)}
+                          onClick={() => setDeleteTarget(h)}
                           disabled={deletingId === h.id}
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                          className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                           title="Hapus"
+                          aria-label={`Hapus riwayat donor ${formatDate(h.donation_date)}`}
                         >
                           {deletingId === h.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
@@ -303,22 +359,15 @@ onChange={handlePhoto}
                       Belum terverifikasi — tambahkan foto bukti donor
                     </p>
                     <div className="mt-2">
-                      <input
-                        ref={editFileInputRef}
-                        type="file"
-                        accept="image/*"
-onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) handleEditPhoto(h.id, file);
-                        }}
-                        className="hidden"
-                      />
                       <Button
                         variant="outline"
                         size="sm"
                         className="gap-1.5 text-xs"
                         disabled={editingId === h.id}
-                        onClick={() => editFileInputRef.current?.click()}
+                        onClick={() => {
+                          editTargetIdRef.current = h.id;
+                          editFileInputRef.current?.click();
+                        }}
                       >
                         {editingId === h.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -335,6 +384,33 @@ onChange={e => {
           </GlassCard>
         ))}
       </div>
+
+      <input
+        ref={editFileInputRef}
+        type="file"
+        accept="image/*"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          const targetId = editTargetIdRef.current;
+          e.target.value = "";
+          editTargetIdRef.current = null;
+          if (file && targetId) handleEditPhoto(targetId, file);
+        }}
+        className="hidden"
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onCancel={() => { if (!deletingId) setDeleteTarget(null); }}
+        onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget); }}
+        title="Hapus riwayat donor?"
+        description={deleteTarget ? `Riwayat donor ${formatDate(deleteTarget.donation_date)} akan dihapus permanen.` : ""}
+        confirmText="Hapus"
+        loading={deletingId !== null}
+        variant="destructive"
+      />
     </div>
   );
 }

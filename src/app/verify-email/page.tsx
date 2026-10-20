@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { toast } from "sonner";
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
 
 function VerifyEmailContent() {
@@ -17,6 +18,13 @@ function VerifyEmailContent() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   useEffect(() => {
     if (!token) {
@@ -42,9 +50,10 @@ function VerifyEmailContent() {
     setSending(true);
     try {
       await api.post("/auth/resend-verification");
-      setMessage("Email verifikasi telah dikirim ulang");
+      toast.success("Email verifikasi telah dikirim ulang");
+      setCooldown(60);
     } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : "Gagal mengirim ulang");
+      toast.error(err instanceof Error ? err.message : "Gagal mengirim ulang");
     } finally {
       setSending(false);
     }
@@ -61,8 +70,12 @@ function VerifyEmailContent() {
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Tidak menerima email?{" "}
-            <button onClick={resend} disabled={sending} className="font-medium text-red-600 hover:text-red-700">
-              {sending ? "Mengirim..." : "Kirim ulang"}
+            <button
+              onClick={resend}
+              disabled={sending || cooldown > 0}
+              className="inline-flex min-h-10 items-center px-1 font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+            >
+              {sending ? "Mengirim..." : cooldown > 0 ? `Kirim ulang (${cooldown} dtk)` : "Kirim ulang"}
             </button>
           </p>
           <div className="mt-4 flex justify-center gap-3">
@@ -97,10 +110,10 @@ function VerifyEmailContent() {
             <h1 className="font-heading text-xl font-bold text-foreground">Verifikasi Gagal</h1>
             <p className="mt-2 text-sm text-muted-foreground">{message}</p>
             <div className="mt-4 flex justify-center gap-3">
-              <Button variant="outline" onClick={resend} disabled={sending}>
-                {sending ? "Mengirim..." : "Kirim Ulang"}
+              <Button variant="outline" onClick={resend} disabled={sending || cooldown > 0}>
+                {sending ? "Mengirim..." : cooldown > 0 ? `Kirim Ulang (${cooldown} dtk)` : "Kirim Ulang"}
               </Button>
-              <Link href="/profile"><Button>Profil</Button></Link>
+              <Link href="/profile" className={buttonVariants()}>Profil</Link>
             </div>
           </>
         )}

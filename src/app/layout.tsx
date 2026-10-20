@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
@@ -41,6 +41,11 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#dc2626",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -54,9 +59,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background font-sans">
         <AuthProvider>
           <DesktopSidebar />
-          <main className="flex-1 pb-20 md:pb-0 md:ml-64">{children}</main>
+          <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:ml-64">{children}</main>
           <BottomNav />
-          <Toaster />
+          <Toaster position="top-center" />
           <Analytics />
         </AuthProvider>
       </body>

@@ -179,3 +179,11 @@
     to { opacity: 1; transform: scale(1); }
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    animation: none;
+  }
+}

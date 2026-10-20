@@ -8,12 +8,13 @@ import { BloodTypeBadge } from "@/components/blood-type-badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/glass-card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle, Share2, Camera, Copy, Check, ShieldAlert } from "lucide-react";
+import { Droplets, Hospital, User, ArrowLeft, HeartHandshake, MessageCircle, AlertCircle, Share2, Copy, Check, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAppUrl } from "@/lib/url";
 import { toast } from "sonner";
 import { coordinatorWaLink } from "@/lib/coordinator";
 import { ReportDialog } from "@/components/report-dialog";
+import { useRegionNames } from "@/lib/hooks/useRegionNames";
 
 type BloodRequest = {
   id: string;
@@ -51,6 +52,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const [sharing, setSharing] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const regionName = useRegionNames([request?.city]);
 
   const captureAndShare = async () => {
     if (!cardRef.current || !request) return;
@@ -172,7 +174,23 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
   const compatibleForRequest = compatibleBase[baseType(bloodDisplay)] || [];
   const isCompatible = user ? compatibleForRequest.includes(baseType(userBloodDisplay)) : true;
   const isWaitingOrIneligible = !!user && eligibilityStatus != null && eligibilityStatus !== "eligible";
-  const isButtonDisabled = !isCompatible || isWaitingOrIneligible || !user || isUnverified;
+  // Logged-out / unverified / missing-birthdate users keep the button enabled so its onClick can redirect them.
+  const needsSetup = !user || isUnverified || !user.date_of_birth;
+  const isButtonDisabled = !needsSetup && (!isCompatible || isWaitingOrIneligible);
+  const donateHint = !user
+    ? "Masuk terlebih dahulu untuk mencatat donasi"
+    : isUnverified
+      ? "Verifikasi email Anda terlebih dahulu"
+      : !user.date_of_birth
+        ? "Lengkapi tanggal lahir di profil terlebih dahulu"
+        : !isCompatible
+          ? `Golongan darah Anda (${userBloodDisplay}) tidak cocok untuk pasien (${bloodDisplay})`
+          : eligibilityStatus === "waiting_period"
+            ? "Anda masih dalam masa tunggu donor"
+            : isWaitingOrIneligible
+              ? "Anda belum memenuhi syarat donor"
+              : null;
+  const cityDisplay = request.city_name || regionName(request.city);
   const pageUrl = getAppUrl() + window.location.pathname;
   const remaining = request.bags - (request.fulfilled_bags || 0);
   const progress = request.bags > 0 ? ((request.fulfilled_bags || 0) / request.bags) * 100 : 0;
@@ -182,7 +200,7 @@ export default function ShareCardPage({ params }: { params: Promise<{ id: string
 
 🩸 Golongan Darah: ${bloodDisplay}
 👤 Pasien: ${request.patient_name}
-🏥 ${request.hospital}${request.city ? `, ${request.city_name || request.city}` : ""}
+🏥 ${request.hospital}${request.city ? `, ${cityDisplay}` : ""}
 📦 Butuh: ${remaining} kantong${request.urgency === "critical" ? " ⚠️ KRITIS" : request.urgency === "urgent" ? " ⚠️ MENDESAK" : ""}
 
 ${pageUrl}`;
@@ -200,8 +218,8 @@ ${pageUrl}`;
   return (
     <div className="mx-auto max-w-md px-5 py-6">
       <button
-        onClick={() => router.back()}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        onClick={() => (window.history.length > 1 ? router.back() : router.push("/requests"))}
+        className="mb-4 flex min-h-10 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
         Kembali
@@ -227,7 +245,7 @@ ${pageUrl}`;
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Donor cocok</p>
                   <div className="flex flex-wrap justify-center gap-1">
                     {compatibleForRequest.map(t => (
-                      <span key={t} className="rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-bold text-red-600">{t}</span>
+                      <BloodTypeBadge key={t} type={`${t}+`} size="sm" />
                     ))}
                   </div>
                 </div>
@@ -244,7 +262,7 @@ ${pageUrl}`;
                 </div>
                 <div className="flex items-center gap-2">
                   <Hospital className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                  <span className="text-xs text-muted-foreground">{request.hospital}{request.city ? `, ${request.city_name || request.city}` : ""}</span>
+                  <span className="text-xs text-muted-foreground">{request.hospital}{request.city ? `, ${cityDisplay}` : ""}</span>
                 </div>
               </div>
 
@@ -317,52 +335,20 @@ ${pageUrl}`;
 
       {/* Share buttons */}
       <div className="mt-4 space-y-3">
-        <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-          <Share2 className="mr-1 inline h-3 w-3" />
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Bagikan ke Story
         </p>
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={captureAndShare}
-            disabled={sharing}
-            className="flex flex-col items-center gap-1"
-            title="Instagram Story"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
-              <Camera className="h-5 w-5" />
-            </div>
-            <span className="text-[10px] font-medium text-gray-500">Instagram</span>
-          </button>
-
-          <button
-            onClick={captureAndShare}
-            disabled={sharing}
-            className="flex flex-col items-center gap-1"
-            title="WhatsApp Story"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
-              <MessageCircle className="h-5 w-5" />
-            </div>
-            <span className="text-[10px] font-medium text-gray-500">WhatsApp</span>
-          </button>
-
-          <button
-            onClick={captureAndShare}
-            disabled={sharing}
-            className="flex flex-col items-center gap-1"
-            title="Facebook Story"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md transition-transform hover:scale-110 disabled:opacity-50">
-              <Share2 className="h-5 w-5" />
-            </div>
-            <span className="text-[10px] font-medium text-gray-500">Facebook</span>
-          </button>
+        <div className="flex justify-center">
+          <Button onClick={captureAndShare} disabled={sharing} className="px-4">
+            <Share2 />
+            {sharing ? "Menyiapkan gambar..." : "Bagikan Gambar"}
+          </Button>
         </div>
 
         <div className="flex items-center justify-center gap-2">
-          <div className="flex h-px flex-1 bg-gray-200" />
-          <span className="text-[10px] text-gray-400">atau</span>
-          <div className="flex h-px flex-1 bg-gray-200" />
+          <div className="flex h-px flex-1 bg-border" />
+          <span className="text-[10px] text-muted-foreground">atau</span>
+          <div className="flex h-px flex-1 bg-border" />
         </div>
 
         <div className="flex items-start gap-2">
@@ -370,13 +356,15 @@ ${pageUrl}`;
             readOnly
             rows={3}
             value={shareMessage}
-            className="flex-1 resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 leading-relaxed"
+            aria-label="Pesan untuk dibagikan"
+            className="flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground leading-relaxed"
             onClick={(e) => (e.target as HTMLTextAreaElement).select()}
           />
           <button
             onClick={copyLink}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50"
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted"
             title="Salin pesan"
+            aria-label="Salin pesan"
           >
             {linkCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
           </button>
@@ -385,12 +373,12 @@ ${pageUrl}`;
 
       {!isFulfilled && (
         <GlassCard className="mt-4 p-4">
-          <div className="relative group">
+          <div>
             <button
               onClick={() => {
                 if (!user) {
                   toast.error("Silakan masuk terlebih dahulu");
-                  router.push("/login");
+                  router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
                   return;
                 }
                 if (isUnverified) {
@@ -408,28 +396,17 @@ ${pageUrl}`;
                 setConfirmOpen(true);
               }}
               disabled={isButtonDisabled}
-              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition-colors ${
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-colors ${
                 isButtonDisabled
-                  ? "cursor-not-allowed bg-gray-200 text-gray-400"
-                  : "bg-red-600 hover:bg-red-700"
+                  ? "cursor-not-allowed bg-muted text-muted-foreground"
+                  : "bg-red-600 text-white hover:bg-red-700"
               }`}
             >
               {isWaitingOrIneligible ? <AlertCircle className="h-4 w-4" /> : <HeartHandshake className="h-4 w-4" />}
               {isWaitingOrIneligible ? "Dalam Masa Tunggu" : "Saya Sudah Donor"}
             </button>
-            {isButtonDisabled && user && (
-              <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-1.5 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                {isUnverified
-                  ? "Verifikasi email terlebih dahulu"
-                  : !isCompatible
-                    ? `Golongan darah Anda (${userBloodDisplay}) tidak cocok untuk pasien (${bloodDisplay})`
-                    : eligibilityStatus === "waiting_period"
-                      ? "Anda masih dalam masa tunggu donor"
-                      : eligibilityStatus === "not_eligible"
-                        ? "Anda belum memenuhi syarat donor"
-                        : "Silakan masuk untuk donor"}
-                <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-              </div>
+            {donateHint && (
+              <p className="mt-2 text-center text-xs text-muted-foreground">{donateHint}</p>
             )}
           </div>
         </GlassCard>
@@ -456,9 +433,9 @@ ${pageUrl}`;
               <div key={f.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-600">
-                    {f.donor_name.charAt(0)}
+                    {(f.donor_name || "?").charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-sm font-medium text-foreground">{f.donor_name}</span>
+                  <span className="text-sm font-medium text-foreground">{f.donor_name || "Pendonor"}</span>
                 </div>
                 <span className="text-xs font-semibold text-emerald-600">{f.bags} kantong</span>
               </div>

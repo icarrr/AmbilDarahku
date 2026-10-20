@@ -18,9 +18,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Always use `nvm use 22` before running any npm command
 
 ## Key Decisions
-- Uses Supabase JS client (not `pg` Pool) for all API routes
-- `pg` kept as devDependency only for `scripts/migrate.ts` (DDL needs direct PostgreSQL)
+- Uses Supabase JS client for API routes, except admin stats/analytics, which use the `pg` Pool in `src/lib/pg.ts` for SQL GROUP BY (needs `DATABASE_URL` at runtime)
+- `pg` is a devDependency but is also used at runtime (analytics, scrape lock) as well as by `scripts/migrate.ts`
 - Custom JWT auth (not Supabase Auth)
-- RLS disabled on all tables, anon key granted ALL privileges
+- RLS enabled on tables; server uses the service key (bypasses RLS), so authorization is enforced in route code
 - Lazy-init Proxy in `db.ts` for build-time env var resilience
-- Analytics aggregates computed in JS (not SQL GROUP BY)

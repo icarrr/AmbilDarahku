@@ -92,7 +92,7 @@ export default async function VerifyPassportPage({ params }: Props) {
       <GlassCard className="mt-6 border-2 border-emerald-100 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-[#94a3b8]">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Nomor Identitas Donor
             </p>
             <p className="font-mono text-sm font-bold text-foreground">
@@ -134,7 +134,7 @@ export default async function VerifyPassportPage({ params }: Props) {
         </div>
       </GlassCard>
 
-      <p className="mt-4 text-center text-xs text-[#94a3b8]">
+      <p className="mt-4 text-center text-xs text-muted-foreground">
         Verifikasi ini dilakukan melalui sistem AmbilDarahku.
         Hasil verifikasi dapat berubah jika data donor diperbarui.
       </p>

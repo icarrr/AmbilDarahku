@@ -4,92 +4,82 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { useEffect, useRef, useState } from "react";
-import {
-  House, Search, TriangleAlert, Menu, X, Plus,
-  User, History, CalendarDays, Trophy, BadgeCheck,
-  FileText, Shield, Timeline,
-} from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { Menu, X, Plus, LogIn, LogOut } from "lucide-react";
+import { mainNav, memberNav, adminNavItem, isNavActive, type NavItem } from "@/components/nav-config";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 
-const primaryItems = [
-  { href: "/", label: "Beranda", icon: House },
-  { href: "/search", label: "Cari", icon: Search },
-  { href: "/requests", label: "Darah", icon: TriangleAlert },
-];
+// Bottom bar shows the first three main items; Event lives in the drawer.
+const barItems = mainNav.slice(0, 3);
 
-const drawerItems = [
-  { href: "/requests/new", label: "Buat Permintaan Darah", icon: Plus, prominent: true },
-  { href: "/profile", label: "Profil", icon: User },
-  { href: "/donor-history", label: "Riwayat", icon: History },
-  { href: "/events", label: "Event", icon: CalendarDays },
-  { href: "/leaderboard", label: "Peringkat", icon: Trophy },
-  { href: "/passport", label: "Paspor", icon: BadgeCheck },
-  { href: "/claims", label: "Klaim", icon: FileText },
-  { href: "/verification", label: "Verif", icon: Shield },
-  { href: "/timeline", label: "Linimasa", icon: Timeline },
-];
+const barItemClass =
+  "relative flex min-h-11 min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-3 py-1.5 text-xs transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60";
+
+function BarLink({ href, icon: Icon, label, shortLabel, pathname }: NavItem & { pathname: string }) {
+  const isActive = isNavActive(pathname, href);
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        barItemClass,
+        isActive
+          ? "text-primary after:absolute after:-top-1 after:left-1/2 after:h-[4px] after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-primary after:shadow-[0_0_6px_1px_rgba(220,38,38,0.5)]"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      <span>{shortLabel ?? label}</span>
+    </Link>
+  );
+}
+
+function DrawerLink({ href, icon: Icon, label, pathname, onNavigate }: NavItem & { pathname: string; onNavigate: () => void }) {
+  const isActive = isNavActive(pathname, href);
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "flex min-h-11 items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  // Drawer: focus, Escape close, scroll lock, restore focus
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const prev = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = "hidden";
-    const t = window.setTimeout(() => panelRef.current?.focus(), 0);
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDrawerOpen(false);
-    };
-    window.addEventListener("keydown", keyHandler);
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener("keydown", keyHandler);
-      document.body.style.overflow = "";
-      prev?.focus?.();
-    };
-  }, [drawerOpen]);
-
-  const NavLink = ({ href, icon: Icon, label }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string }) => {
-    const isActive = pathname === href;
-    return (
-      <Link
-        href={href}
-        aria-current={isActive ? "page" : undefined}
-        className={cn(
-          "relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-xs min-w-[56px] transition-colors active:scale-95",
-          isActive
-            ? "text-red-600 after:absolute after:-top-1 after:left-1/2 after:h-[4px] after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-red-600 after:shadow-[0_0_6px_1px_rgba(220,38,38,0.5)]"
-            : "text-gray-400 hover:text-gray-600",
-        )}
-      >
-        <Icon className="h-5 w-5" />
-        <span>{label}</span>
-      </Link>
-    );
-  };
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  useDialogFocus(drawerOpen, panelRef, closeDrawer);
 
   return (
     <>
       {/* ── Bottom Nav Bar ── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-area-bottom">
-        <div className="glass-strong rounded-t-2xl px-1 pb-1 pt-2">
+      <nav aria-label="Navigasi utama" className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+        <div className="glass-strong rounded-t-2xl px-1 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-around">
-            {primaryItems.map((item) => <NavLink key={item.href} {...item} />)}
-            {user && (
+            {barItems.map((item) => <BarLink key={item.href} {...item} pathname={pathname} />)}
+            {user ? (
               <button
                 onClick={() => setDrawerOpen(true)}
                 aria-label="Buka menu navigasi"
                 aria-expanded={drawerOpen}
                 aria-haspopup="dialog"
-                className="flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-xs min-w-[56px] text-gray-400 transition-colors hover:text-gray-600 active:scale-95"
+                className={cn(barItemClass, "text-muted-foreground hover:text-foreground")}
               >
                 <Menu className="h-5 w-5" />
                 <span>Menu</span>
               </button>
+            ) : (
+              <BarLink href="/login" label="Masuk" icon={LogIn} pathname={pathname} />
             )}
           </div>
         </div>
@@ -98,72 +88,65 @@ export function BottomNav() {
       {/* ── Drawer ── */}
       {drawerOpen && user && (
         <>
-          {/* Backdrop */}
           <div
             className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm md:hidden animate-fade-in"
-            onClick={() => setDrawerOpen(false)}
+            onClick={closeDrawer}
           />
 
-          {/* Panel */}
           <div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="drawer-title"
             tabIndex={-1}
-            className="fixed bottom-0 left-0 right-0 z-[61] max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-10 pt-4 shadow-xl md:hidden animate-slide-up"
+            className="fixed bottom-0 left-0 right-0 z-[61] max-h-[80dvh] overflow-y-auto rounded-t-2xl bg-popover px-4 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl md:hidden animate-slide-up"
           >
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <h3 id="drawer-title" className="font-heading text-base font-bold text-foreground">Menu</h3>
               <button
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
                 aria-label="Tutup menu"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            <Link
+              href="/requests/new"
+              onClick={closeDrawer}
+              className="mb-3 flex min-h-11 items-center gap-3 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Buat Permintaan Darah</span>
+            </Link>
+
             <div className="flex flex-col gap-1">
-              {drawerItems.map(({ href, label, icon: Icon, prominent }) => {
-                const isActive = pathname === href;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setDrawerOpen(false)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
-                      prominent
-                        ? "mb-2 bg-red-600 text-white hover:bg-red-700"
-                        : isActive
-                          ? "bg-red-50 text-red-600"
-                          : "text-gray-700 hover:bg-gray-50",
-                    )}
-                  >
-                    <Icon className={cn("h-5 w-5", prominent && "text-white")} />
-                    <span>{label}</span>
-                  </Link>
-                );
-              })}
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={() => setDrawerOpen(false)}
-                  aria-current={pathname === "/admin" ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
-                    pathname === "/admin"
-                      ? "bg-red-50 text-red-600"
-                      : "text-gray-700 hover:bg-gray-50",
-                  )}
-                >
-                  <Trophy className="h-5 w-5" />
-                  <span>Admin</span>
-                </Link>
-              )}
+              {mainNav.slice(3).map((item) => <DrawerLink key={item.href} {...item} pathname={pathname} onNavigate={closeDrawer} />)}
             </div>
+
+            {memberNav.map((group) => (
+              <div key={group.title} className="mt-3">
+                <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.title}</p>
+                <div className="flex flex-col gap-1">
+                  {group.items.map((item) => <DrawerLink key={item.href} {...item} pathname={pathname} onNavigate={closeDrawer} />)}
+                </div>
+              </div>
+            ))}
+
+            {isAdmin && (
+              <div className="mt-3 flex flex-col gap-1">
+                <DrawerLink {...adminNavItem} pathname={pathname} onNavigate={closeDrawer} />
+              </div>
+            )}
+
+            <button
+              onClick={() => { closeDrawer(); logout(); }}
+              className="mt-3 flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <LogOut className="h-5 w-5" />
+              <span>Keluar</span>
+            </button>
           </div>
         </>
       )}

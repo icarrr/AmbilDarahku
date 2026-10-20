@@ -8,7 +8,11 @@ import { StatusBadge } from "@/components/status-badge";
 import { GlassCard } from "@/components/glass-card";
 import { AvatarWithBadge } from "@/components/avatar-with-badge";
 import { AdminContactCard } from "@/components/admin-contact-card";
-import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck } from "lucide-react";
+import { MapPin, Award, Droplets, Calendar, Heart, ShieldCheck, MessageCircle } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { coordinatorWaLink } from "@/lib/coordinator";
+import { getAppUrl } from "@/lib/url";
+import { cn } from "@/lib/utils";
 import { lookupName } from "@/lib/data/wilayah";
 import { PUBLIC_USER_FIELDS, toPublicUser } from "@/lib/privacy";
 
@@ -104,10 +108,21 @@ export default async function PublicPortfolioPage({
 
   const bloodDisplay = profile.blood_type;
   const badges = profile.badges || [];
-  const topBadge = badges[0]?.badge?.name || "Donor";
+  const topBadge = badges[0]?.badge?.name;
   const isAvailable = profile.availability_status === "available" && profile.eligibility_status === "eligible";
   const liters = (profile.total_donations * 0.45).toFixed(2);
   const livesSaved = profile.total_donations * 3;
+  const eligibilityLabel: Record<string, string> = {
+    eligible: "Sehat",
+    waiting_period: "Masa Tunggu",
+    needs_clearance: "Perlu Izin Dokter",
+    not_eligible: "Tidak Memenuhi Syarat",
+  };
+  const genderLabel = profile.gender === "male" ? "Laki-laki" : profile.gender === "female" ? "Perempuan" : "—";
+  const cityLabel = profile.city ? lookupName(profile.city) : "";
+  const waLink = coordinatorWaLink(
+    `Halo, saya mencari donor darah ${profile.blood_type}${cityLabel ? ` di ${cityLabel}` : ""}. Apakah bisa di hubungkan ke "${profile.full_name}"? ${getAppUrl()}/u/${username}`
+  );
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
@@ -116,16 +131,16 @@ export default async function PublicPortfolioPage({
           name={profile.full_name}
           avatarUrl={profile.avatar_url}
           size="xl"
-          badge={{ label: topBadge, level: "gold" }}
+          badge={topBadge ? { label: topBadge } : undefined}
         />
         <h1 className="mt-4 font-heading text-2xl font-bold text-foreground">
           {profile.full_name}
         </h1>
-        <div className="mt-2 flex items-center justify-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           <BloodTypeBadge type={bloodDisplay} size="md" />
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
-            {lookupName(profile.city)}
+            {cityLabel || "—"}
           </span>
           <StatusBadge status={profile.eligibility_status} dot />
         </div>
@@ -146,7 +161,7 @@ export default async function PublicPortfolioPage({
       <AdminContactCard userId={profile.id} />
 
       {badges.length > 0 && (
-        <div className="mt-6 grid grid-cols-4 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {badges.slice(0, 4).map((b) => (
             <GlassCard key={b.id} className="text-center py-3">
               <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-lg">
@@ -165,19 +180,19 @@ export default async function PublicPortfolioPage({
           <Droplets className="mx-auto h-5 w-5 text-red-600" />
           <p className="mt-1 font-heading text-3xl font-bold text-foreground">{profile.total_donations}</p>
           <p className="text-xs text-muted-foreground">Donasi</p>
-          <p className="text-xs text-[#94a3b8]">{liters} L</p>
+          <p className="text-xs text-muted-foreground">{liters} L</p>
         </GlassCard>
         <GlassCard className="text-center py-4">
           <Heart className="mx-auto h-5 w-5 text-red-600" />
           <p className="mt-1 font-heading text-3xl font-bold text-emerald-600">{livesSaved}</p>
           <p className="text-xs text-muted-foreground">Nyawa</p>
-          <p className="text-xs text-[#94a3b8]">Terselamatkan</p>
+          <p className="text-xs text-muted-foreground">Terselamatkan</p>
         </GlassCard>
         <GlassCard className="text-center py-4">
           <ShieldCheck className="mx-auto h-5 w-5 text-amber-500" />
           <p className="mt-1 font-heading text-3xl font-bold text-foreground">{profile.total_points}</p>
           <p className="text-xs text-muted-foreground">Poin</p>
-          <p className="text-xs text-[#94a3b8]">{badges.length} {badges.length === 1 ? "badge" : "badges"}</p>
+          <p className="text-xs text-muted-foreground">{badges.length} lencana</p>
         </GlassCard>
       </div>
 
@@ -240,7 +255,7 @@ export default async function PublicPortfolioPage({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Status Donor</span>
-            <span className="font-medium">{profile.eligibility_status === "eligible" ? "Sehat" : profile.eligibility_status === "waiting_period" ? "Masa Tunggu" : profile.eligibility_status === "needs_clearance" ? "Perlu Izin Dokter" : "Tidak Memenuhi Syarat"}</span>
+            <span className="font-medium">{eligibilityLabel[profile.eligibility_status] ?? "—"}</span>
           </div>
           {profile.last_donation_date && (
             <div className="flex justify-between">
@@ -262,7 +277,7 @@ export default async function PublicPortfolioPage({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Jenis Kelamin</span>
-            <span className="font-medium capitalize">{profile.gender === "male" ? "Laki-laki" : "Perempuan"}</span>
+            <span className="font-medium">{genderLabel}</span>
           </div>
         </div>
       </GlassCard>
@@ -290,17 +305,30 @@ export default async function PublicPortfolioPage({
         </GlassCard>
       )}
 
-      <div className="mt-6 text-center">
+      <div className="mt-6 flex flex-col items-center gap-2 text-center">
+        {waLink && (
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-600"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Hubungi Koordinator
+          </a>
+        )}
         <a
           href={`/requests/new?blood_type=${encodeURIComponent(profile.blood_type)}`}
-          className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700"
+          className={cn(buttonVariants({ variant: "outline" }), "px-6")}
         >
           <Heart className="h-4 w-4" />
-          Request Darah {bloodDisplay}
+          Buat Permintaan Darah {bloodDisplay}
         </a>
-        <p className="mt-2 text-xs text-[#94a3b8]">
-          Terverifikasi melalui AmbilDarahku
-        </p>
+        {(profile.verification_level ?? 0) > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Terverifikasi melalui AmbilDarahku
+          </p>
+        )}
       </div>
     </div>
   );

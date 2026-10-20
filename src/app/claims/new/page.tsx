@@ -7,10 +7,13 @@ import { GlassCard } from "@/components/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 import { toast } from "sonner";
 import { ArrowLeft, Camera, Loader2, Upload } from "lucide-react";
 import Link from "next/link";
+
+const BLOOD_OPTIONS = ["A", "B", "AB", "O"];
 
 export default function NewClaimPage() {
   const router = useRouter();
@@ -81,19 +84,22 @@ export default function NewClaimPage() {
 
       <GlassCard className="mt-6">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label>Tanggal Donasi *</Label>
+              <Label htmlFor="claim-date">Tanggal Donasi *</Label>
               <Input
+                id="claim-date"
                 type="date"
                 value={form.donation_date}
                 onChange={e => setForm(p => ({ ...p, donation_date: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
-              <Label>Volume (ml)</Label>
+              <Label htmlFor="claim-volume">Volume (ml)</Label>
               <Input
+                id="claim-volume"
                 type="number"
+                inputMode="numeric"
                 value={form.volume_ml}
                 onChange={e => setForm(p => ({ ...p, volume_ml: e.target.value }))}
                 placeholder="350"
@@ -102,8 +108,9 @@ export default function NewClaimPage() {
           </div>
 
           <div className="space-y-1">
-            <Label>Lokasi Donasi *</Label>
+            <Label htmlFor="claim-location">Lokasi Donasi *</Label>
             <Input
+              id="claim-location"
               value={form.location}
               onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
               placeholder="Kota, tempat donor"
@@ -111,22 +118,35 @@ export default function NewClaimPage() {
           </div>
 
           <div className="space-y-1">
-            <Label>Institusi / Rumah Sakit</Label>
+            <Label htmlFor="claim-institution">Institusi / Rumah Sakit</Label>
             <Input
+              id="claim-institution"
               value={form.institution_name}
               onChange={e => setForm(p => ({ ...p, institution_name: e.target.value }))}
               placeholder="PMI Kota, RS Umum, dll"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Golongan Darah</Label>
-              <Input
-                value={form.blood_type}
-                onChange={e => setForm(p => ({ ...p, blood_type: e.target.value }))}
-                placeholder="A, B, AB, O"
-              />
+          <div className="space-y-1">
+            <Label id="claim-blood-type-label">Golongan Darah</Label>
+            <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-labelledby="claim-blood-type-label">
+              {BLOOD_OPTIONS.map((bt) => (
+                <button
+                  key={bt}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.blood_type === bt}
+                  onClick={() => setForm(p => ({ ...p, blood_type: p.blood_type === bt ? "" : bt }))}
+                  className={cn(
+                    "rounded-lg py-2 text-center text-sm font-bold transition-colors",
+                    form.blood_type === bt
+                      ? "bg-red-600 text-white"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                >
+                  {bt}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -177,13 +197,14 @@ export default function NewClaimPage() {
           </div>
 
           <div className="space-y-1">
-            <Label>Catatan Tambahan</Label>
+            <Label htmlFor="claim-notes">Catatan Tambahan</Label>
             <textarea
+              id="claim-notes"
               value={form.additional_notes}
               onChange={e => setForm(p => ({ ...p, additional_notes: e.target.value }))}
               placeholder="Informasi lain yang mendukung klaim Anda"
               rows={3}
-              className="flex w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-100"
+              className="flex w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-100"
             />
           </div>
 

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { GlassCard } from "@/components/glass-card";
-import { Button } from "@/components/ui/button";
-import { CalendarDays, MapPin, Clock, Users, Plus } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { CalendarDays, MapPin, Clock, Users, Plus, Archive } from "lucide-react";
 
 type Event = {
   id: string;
@@ -24,16 +26,25 @@ type Event = {
   poster_url?: string | null;
 };
 
-export default function EventsPage() {
+type Filter = "upcoming" | "all" | "past";
+const FILTERS: readonly Filter[] = ["upcoming", "past", "all"];
+const PAGE_STEP = 12;
+
+function EventsContent() {
   const { isAdmin } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [filter, setFilter] = useState<"upcoming" | "all" | "past">("upcoming");
+  const [filter, setFilter] = useState<Filter>(() => {
+    const p = searchParams.get("filter") as Filter | null;
+    return p && FILTERS.includes(p) ? p : "upcoming";
+  });
   const [hasMore, setHasMore] = useState(false);
-  const PAGE_STEP = 12;
 
-  const fetchEvents = useCallback(async (status: typeof filter, offset: number, append: boolean) => {
+  const fetchEvents = useCallback(async (status: Filter, offset: number, append: boolean) => {
     try {
       const params = new URLSearchParams({ status, limit: String(PAGE_STEP), offset: String(offset) });
       const d = await api.get<{ events: Event[] }>(`/events?${params}`);
@@ -49,16 +60,26 @@ export default function EventsPage() {
   }, []);
 
   const changeFilter = (f: typeof filter) => {
+    if (f === filter) return;
     setFilter(f);
     setLoading(true);
     setError(false);
+    router.replace(f === "upcoming" ? "/events" : `/events?filter=${f}`, { scroll: false });
   };
 
   useEffect(() => {
     fetchEvents(filter, 0, false);
   }, [filter, fetchEvents]);
 
-  const loadMore = () => fetchEvents(filter, events.length, true);
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await fetchEvents(filter, events.length, true);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const formatDate = (d: string) => {
     const date = new Date(d);
@@ -74,6 +95,7 @@ export default function EventsPage() {
 
   const day = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric" });
   const month = (d: string) => new Date(d).toLocaleDateString("id-ID", { month: "short" }).toUpperCase();
+  const year = (d: string) => new Date(d).getFullYear();
 
   const filteredEvents = events.filter(e => {
     if (filter === "all") return true;
@@ -91,25 +113,27 @@ export default function EventsPage() {
           </p>
         </div>
         {isAdmin && (
-          <Link href="/events/new">
-            <Button className="shrink-0 bg-red-600 hover:bg-red-700">
-              <Plus className="mr-1 h-4 w-4" /> Buat Event
-            </Button>
+          <Link href="/events/new" className={cn(buttonVariants(), "shrink-0 px-3")}>
+            <Plus className="h-4 w-4" /> Buat Event
           </Link>
         )}
       </div>
 
-      <div className="mb-4 flex gap-2">
-        {(["upcoming", "past", "all"] as const).map(opt => (
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {FILTERS.map(opt => (
           <Button
             key={opt}
             variant={filter === opt ? "default" : "outline"}
             size="sm"
+            aria-pressed={filter === opt}
             onClick={() => changeFilter(opt)}
           >
             {opt === "upcoming" ? "Akan Datang" : opt === "all" ? "Semua" : "Selesai"}
           </Button>
         ))}
+        <Link href="/events/archive" className={cn(buttonVariants({ variant: "link", size: "sm" }), "ml-auto")}>
+          <Archive className="h-3.5 w-3.5" /> Lihat arsip event
+        </Link>
       </div>
 
       {error && !loading ? (
@@ -124,15 +148,15 @@ export default function EventsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
             <GlassCard key={i} className="animate-pulse">
-              <div className="h-24 rounded-lg bg-gray-200" />
-              <div className="mt-3 h-4 w-3/4 rounded bg-gray-200" />
-              <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+              <div className="h-24 rounded-lg bg-muted" />
+              <div className="mt-3 h-4 w-3/4 rounded bg-muted" />
+              <div className="mt-2 h-3 w-1/2 rounded bg-muted" />
             </GlassCard>
           ))}
         </div>
       ) : events.length === 0 ? (
         <GlassCard className="py-12 text-center animate-fade-in">
-          <CalendarDays className="mx-auto h-12 w-12 text-gray-200" />
+          <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40" />
           <p className="mt-2 font-medium text-foreground">
             {filter === "upcoming" ? "Belum ada event yang akan datang" :
              filter === "past" ? "Belum ada event yang selesai" :
@@ -140,8 +164,8 @@ export default function EventsPage() {
           </p>
           <p className="text-xs text-muted-foreground">Pantau terus untuk event terbaru</p>
           {isAdmin && (
-            <Link href="/events/new">
-              <Button variant="outline" className="mt-4"><Plus className="h-4 w-4 mr-1" /> Buat Event</Button>
+            <Link href="/events/new" className={cn(buttonVariants({ variant: "outline" }), "mt-4 px-3")}>
+              <Plus className="h-4 w-4" /> Buat Event
             </Link>
           )}
         </GlassCard>
@@ -160,12 +184,17 @@ export default function EventsPage() {
               tabIndex={imgUrl ? 0 : undefined}
             >
               <div className="flex items-start gap-4">
-                <div className="flex flex-col items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-center min-w-[56px]">
-                  <span className="text-xs font-bold text-red-600">{day(event.event_date)}</span>
-                  <span className="text-sm font-bold text-red-600">{month(event.event_date)}</span>
-                </div>
+                <time
+                  dateTime={event.event_date}
+                  title={formatDate(event.event_date)}
+                  className="flex flex-col items-center justify-center rounded-lg bg-primary/10 px-3 py-2 text-center min-w-[56px] text-primary"
+                >
+                  <span className="text-xs font-bold">{day(event.event_date)}</span>
+                  <span className="text-sm font-bold">{month(event.event_date)}</span>
+                  <span className="text-[10px] font-medium opacity-80">{year(event.event_date)}</span>
+                </time>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground">{event.title}</h3>
+                  <h3 className="text-sm font-semibold text-foreground line-clamp-2 break-words">{event.title}</h3>
                   <div className="mt-1 space-y-1">
                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3 flex-shrink-0" />
@@ -185,7 +214,7 @@ export default function EventsPage() {
                 </div>
               </div>
               {event.description && (
-                <p className="mt-3 text-xs text-[#94a3b8] line-clamp-2">{event.description}</p>
+                <p className="mt-3 text-xs text-muted-foreground line-clamp-2">{event.description}</p>
               )}
             </GlassCard>
             );
@@ -193,13 +222,21 @@ export default function EventsPage() {
         </div>
         {hasMore && !error && (
           <div className="mt-6 text-center">
-            <Button variant="outline" onClick={loadMore} disabled={loading}>
-              Muat Lebih Banyak
+            <Button variant="outline" className="px-4" onClick={loadMore} disabled={loading || loadingMore}>
+              {loadingMore ? "Memuat..." : "Muat Lebih Banyak"}
             </Button>
           </div>
         )}
         </>
       )}
     </div>
+  );
+}
+
+export default function EventsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl px-5 py-6"><p className="text-muted-foreground">Memuat...</p></div>}>
+      <EventsContent />
+    </Suspense>
   );
 }
