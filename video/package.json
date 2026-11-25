@@ -1,0 +1,27 @@
+{
+  "name": "ambildarahku-video",
+  "private": true,
+  "scripts": {
+    "sync": "SITE_DIR=snapshot sh scripts/sync.sh",
+    "audio": "node scripts/make-audio.mjs",
+    "prepare-assets": "npm run audio && npm run sync",
+    "studio": "npm run prepare-assets && remotion studio",
+    "bundle": "npm run prepare-assets && remotion bundle --out-dir=out/bundle",
+    "still": "remotion still out/bundle Story --jpeg-quality=85 --timeout=90000",
+    "render": "npm run bundle && remotion render out/bundle Story out/story.mp4 --codec h264 --crf 18 --audio-codec aac --timeout=90000",
+    "render:showcase": "npm run bundle && remotion render out/bundle Showcase out/showcase.mp4 --codec h264 --crf 18",
+    "snapshot": "node scripts/snapshot.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.543",
+    "@remotion/google-fonts": "4.0.543",
+    "@remotion/transitions": "4.0.543",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.543"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}
