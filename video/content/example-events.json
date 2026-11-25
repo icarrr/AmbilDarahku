@@ -1,0 +1,10 @@
+{
+  "title": "Jadwal donor akhir pekan ini",
+  "subtitle": "Contoh tampilan — jalankan fetch-events untuk data asli",
+  "sourceLabel": "Sumber: PMI · selengkapnya di ambildarahku.vercel.app",
+  "events": [
+    { "title": "Contoh Lokasi Donor 1", "city": "Kota Contoh", "event_date": "2026-12-05", "start_time": "08:00", "end_time": "12:00", "organizer": "PMI" },
+    { "title": "Contoh Lokasi Donor 2", "city": "Kota Contoh", "event_date": "2026-12-05", "start_time": "13:00", "end_time": "16:00", "organizer": "PMI" },
+    { "title": "Contoh Lokasi Donor 3", "city": "Kota Contoh", "event_date": "2026-12-06", "start_time": "09:00", "end_time": "14:00", "organizer": "PMI" }
+  ]
+}

@@ -10,7 +10,9 @@
     "still": "remotion still out/bundle Story --jpeg-quality=85 --timeout=90000",
     "render": "npm run bundle && remotion render out/bundle Story out/story.mp4 --codec h264 --crf 18 --audio-codec aac --timeout=90000",
     "render:showcase": "npm run bundle && remotion render out/bundle Showcase out/showcase.mp4 --codec h264 --crf 18",
-    "snapshot": "node scripts/snapshot.mjs"
+    "snapshot": "node scripts/snapshot.mjs",
+    "reel": "npm run bundle && node scripts/reel.mjs",
+    "fetch-events": "node scripts/fetch-events.mjs"
   },
   "dependencies": {
     "@remotion/cli": "4.0.543",
